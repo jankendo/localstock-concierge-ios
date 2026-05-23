@@ -28,6 +28,8 @@ SUPABASE_PUBLISHABLE_KEY = sb_publishable_YOUR_KEY
 
 The publishable key is safe in the client only because RLS is enabled. Do not put a service-role key in the iOS app or in this public repository.
 
+For GitHub Actions builds, add repository secrets named `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. The unsigned IPA workflow injects them as build settings without committing secrets.
+
 ## Local development
 
 This repository is designed to be edited from Windows and built on GitHub Actions.
