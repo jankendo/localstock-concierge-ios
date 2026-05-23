@@ -23,6 +23,14 @@ jobs:
           ls -1 /Applications | grep -E '^Xcode' || true
           xcodebuild -version
 
+      - name: Select Xcode 26
+        run: |
+          if ls -d /Applications/Xcode_26*.app >/dev/null 2>&1; then
+            XCODE_APP="$(ls -d /Applications/Xcode_26*.app | sort | tail -n 1)"
+            sudo xcode-select -s "$XCODE_APP/Contents/Developer"
+          fi
+          xcodebuild -version
+
       - name: Install XcodeGen
         run: brew install xcodegen
 

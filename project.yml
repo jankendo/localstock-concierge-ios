@@ -2,7 +2,7 @@ name: LocalStockConcierge
 options:
   minimumXcodeGenVersion: "2.40.0"
   deploymentTarget:
-    iOS: "18.0"
+    iOS: "26.0"
   developmentLanguage: ja
   createIntermediateGroups: true
   generateEmptyDirectories: true
@@ -30,6 +30,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.codex.localstockconcierge
         PRODUCT_NAME: LocalStockConcierge
         INFOPLIST_FILE: LocalStockConcierge/Info.plist
+        IPHONEOS_DEPLOYMENT_TARGET: "26.0"
         TARGETED_DEVICE_FAMILY: "1"
         SUPPORTS_MACCATALYST: NO
         GENERATE_INFOPLIST_FILE: NO
