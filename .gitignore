@@ -1,0 +1,14 @@
+.DS_Store
+.build/
+.swiftpm/
+DerivedData/
+build/
+artifacts/
+*.xcworkspace
+*.xcodeproj
+*.ipa
+*.dSYM.zip
+*.litertlm
+Package.resolved
+xcuserdata/
+*.xcuserstate

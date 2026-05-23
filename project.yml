@@ -1,0 +1,41 @@
+name: LocalStockConcierge
+options:
+  minimumXcodeGenVersion: "2.40.0"
+  deploymentTarget:
+    iOS: "18.0"
+  developmentLanguage: ja
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+packages:
+  LiteRTLM:
+    url: https://github.com/google-ai-edge/LiteRT-LM
+    from: 0.12.0
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Manual
+targets:
+  LocalStockConcierge:
+    type: application
+    platform: iOS
+    sources:
+      - path: LocalStockConcierge
+    dependencies:
+      - package: LiteRTLM
+        product: LiteRTLM
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.codex.localstockconcierge
+        PRODUCT_NAME: LocalStockConcierge
+        INFOPLIST_FILE: LocalStockConcierge/Info.plist
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: NO
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: ""
+        DEVELOPMENT_TEAM: ""
+    scheme:
+      testTargets: []
