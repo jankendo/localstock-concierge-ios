@@ -40,7 +40,23 @@ jobs:
           xcodebuild \
             -project LocalStockConcierge.xcodeproj \
             -scheme LocalStockConcierge \
+            -derivedDataPath build \
+            -clonedSourcePackagesDirPath SourcePackages \
             -resolvePackageDependencies
+
+      - name: Patch LiteRT-LM package manifest for app integration
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          manifest = Path("SourcePackages/checkouts/LiteRT-LM/Package.swift")
+          text = manifest.read_text()
+          text = text.replace(
+              '      linkerSettings: [\n        .unsafeFlags(["-Xlinker", "-all_load"])\n      ]',
+              '      linkerSettings: []'
+          )
+          manifest.write_text(text)
+          PY
+          ! grep -R "unsafeFlags" SourcePackages/checkouts/LiteRT-LM/Package.swift
 
       - name: Build unsigned app
         run: |
@@ -52,6 +68,8 @@ jobs:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
+            -clonedSourcePackagesDirPath SourcePackages \
+            -disableAutomaticPackageResolution \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
