@@ -46,6 +46,7 @@ jobs:
 
       - name: Patch LiteRT-LM package manifest for app integration
         run: |
+          chmod -R u+w SourcePackages/checkouts/LiteRT-LM
           python3 - <<'PY'
           from pathlib import Path
           manifest = Path("SourcePackages/checkouts/LiteRT-LM/Package.swift")
