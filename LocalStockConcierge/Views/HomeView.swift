@@ -2,7 +2,6 @@ import SwiftData
 import SwiftUI
 
 struct HomeView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(AppState.self) private var appState
     @Query(sort: \Product.name) private var products: [Product]
     @Query(sort: \InventoryEvent.createdAt, order: .reverse) private var events: [InventoryEvent]
@@ -10,42 +9,55 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    metrics
+            ZStack {
+                LinearGradient(
+                    colors: [StockTheme.softBackground, StockTheme.mint.opacity(0.16), StockTheme.coral.opacity(0.10)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
 
-                    SectionHeader(title: "今日の提案", systemImage: "lightbulb.max")
-                    if alerts.isEmpty {
-                        EmptyStateView(systemImage: "checkmark.circle", title: "今すぐ対応する在庫はありません", message: "レシート読み取りや開封記録を続けると提案精度が上がります。")
-                    } else {
-                        VStack(spacing: 10) {
-                            ForEach(alerts) { alert in
-                                AlertRow(alert: alert) {
-                                    addShopping(alert)
-                                } onOpened: {
-                                    recordOpened(alert.product)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        hero
+                        metrics
+
+                        SectionHeader(title: "今日の提案", systemImage: "lightbulb.max.fill")
+                        if alerts.isEmpty {
+                            EmptyStateView(systemImage: "checkmark.circle.fill", title: "今日は落ち着いています", message: "買い物候補はありません。")
+                        } else {
+                            VStack(spacing: 10) {
+                                ForEach(alerts) { alert in
+                                    AlertRow(alert: alert) {
+                                        addShopping(alert)
+                                    } onOpened: {
+                                        recordOpened(alert.product)
+                                    }
+                                }
+                            }
+                        }
+
+                        SectionHeader(title: "買い物リスト", systemImage: "cart.fill")
+                        if activeShopping.isEmpty {
+                            Text("買い物候補はありません。")
+                                .font(.callout.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .padding(.vertical, 4)
+                        } else {
+                            VStack(spacing: 8) {
+                                ForEach(activeShopping.prefix(5)) { item in
+                                    ShoppingCompactRow(item: item) {
+                                        completeShopping(item)
+                                    }
                                 }
                             }
                         }
                     }
-
-                    SectionHeader(title: "買い物リスト", systemImage: "cart")
-                    if activeShopping.isEmpty {
-                        Text("買い物候補はありません。")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        VStack(spacing: 8) {
-                            ForEach(activeShopping.prefix(5)) { item in
-                                ShoppingCompactRow(item: item) {
-                                    completeShopping(item)
-                                }
-                            }
-                        }
-                    }
+                    .padding()
                 }
-                .padding()
             }
             .navigationTitle("ふたり在庫")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -59,11 +71,37 @@ struct HomeView: View {
         }
     }
 
+    private var hero: some View {
+        HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
+                StatusPill(text: appState.cloudAuth.status.label, color: appState.cloudAuth.status.isSignedIn ? .green : .orange, systemImage: "person.2.fill")
+                Text("今日の在庫")
+                    .font(.system(size: 32, weight: .black, design: .rounded))
+                    .foregroundStyle(StockTheme.ink)
+                Text("今買うものだけ見ます")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            Image("ConciergeHero")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 118, height: 118)
+                .accessibilityHidden(true)
+        }
+        .padding(16)
+        .background(.white.opacity(0.82), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(.white.opacity(0.75), lineWidth: 1)
+        }
+    }
+
     private var metrics: some View {
         HStack(spacing: 10) {
-            MetricTile(title: "今買う", value: "\(alerts.filter { $0.state.status == .buyNow }.count)", systemImage: "exclamationmark.triangle", tint: .red)
-            MetricTile(title: "そろそろ", value: "\(alerts.filter { $0.state.status == .buySoon }.count)", systemImage: "clock", tint: .orange)
-            MetricTile(title: "買い物", value: "\(activeShopping.count)", systemImage: "cart.fill", tint: .blue)
+            MetricTile(title: "今買う", value: "\(alerts.filter { $0.state.status == .buyNow }.count)", systemImage: "exclamationmark.triangle.fill", tint: StockTheme.coral)
+            MetricTile(title: "そろそろ", value: "\(alerts.filter { $0.state.status == .buySoon }.count)", systemImage: "clock.fill", tint: StockTheme.lemon)
+            MetricTile(title: "買い物", value: "\(activeShopping.count)", systemImage: "cart.fill", tint: StockTheme.sky)
         }
     }
 
@@ -75,42 +113,44 @@ struct HomeView: View {
         shoppingItems.filter { $0.status == .active }
     }
 
-    private var repository: SwiftDataInventoryRepository {
-        SwiftDataInventoryRepository(context: modelContext)
-    }
-
     private func recordOpened(_ product: Product) {
-        do {
-            _ = try repository.recordOpened(productId: product.id, quantity: 1, source: .manual, note: "ホームから開封")
-            appState.showToast("\(product.name)を開封として記録しました")
-        } catch {
-            appState.showToast(error.localizedDescription)
+        Task {
+            do {
+                _ = try await appState.inventoryStore.recordOpened(productId: product.id, quantity: 1, source: .manual, note: "ホームから開封")
+                appState.showToast("\(product.name)を開封として記録しました")
+            } catch {
+                appState.showToast(error.localizedDescription)
+            }
         }
     }
 
     private func addShopping(_ alert: InventoryAlert) {
-        do {
-            _ = try repository.addShoppingItem(
-                productId: alert.product.id,
-                name: alert.product.name,
-                quantity: max(alert.product.idealStock - alert.state.estimatedStock, 1),
-                unit: alert.product.unit,
-                storeType: alert.product.category.defaultStoreType,
-                priority: alert.state.status == .buyNow ? .urgent : .high,
-                reason: alert.reason
-            )
-            appState.showToast("買い物リストに追加しました")
-        } catch {
-            appState.showToast(error.localizedDescription)
+        Task {
+            do {
+                _ = try await appState.inventoryStore.addShoppingItem(
+                    productId: alert.product.id,
+                    name: alert.product.name,
+                    quantity: max(alert.product.idealStock - alert.state.estimatedStock, 1),
+                    unit: alert.product.unit,
+                    storeType: alert.product.category.defaultStoreType,
+                    priority: alert.state.status == .buyNow ? .urgent : .high,
+                    reason: alert.reason
+                )
+                appState.showToast("買い物リストに追加しました")
+            } catch {
+                appState.showToast(error.localizedDescription)
+            }
         }
     }
 
     private func completeShopping(_ item: ShoppingItem) {
-        do {
-            try repository.completeShoppingItem(id: item.id)
-            appState.showToast("購入済みにしました")
-        } catch {
-            appState.showToast(error.localizedDescription)
+        Task {
+            do {
+                try await appState.inventoryStore.completeShoppingItem(id: item.id)
+                appState.showToast("購入済みにしました")
+            } catch {
+                appState.showToast(error.localizedDescription)
+            }
         }
     }
 }
@@ -150,17 +190,21 @@ struct AlertRow: View {
             }
 
             HStack {
-                Button("開封記録", action: onOpened)
+                Button(action: onOpened) {
+                    Label("開封", systemImage: "shippingbox.and.arrow.backward.fill")
+                }
                     .buttonStyle(.bordered)
-                Button("買い物へ", action: onAddShopping)
+                Button(action: onAddShopping) {
+                    Label("買い物へ", systemImage: "cart.badge.plus")
+                }
                     .buttonStyle(.borderedProminent)
             }
         }
         .padding(14)
-        .background(.background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(.quaternary)
+                .stroke(alert.state.status.tint.opacity(0.24), lineWidth: 1)
         }
     }
 }
@@ -185,7 +229,7 @@ struct ShoppingCompactRow: View {
             .buttonStyle(.borderless)
         }
         .padding(12)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(.white.opacity(0.86), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
@@ -208,6 +252,6 @@ struct EmptyStateView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(24)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(.white.opacity(0.78), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }

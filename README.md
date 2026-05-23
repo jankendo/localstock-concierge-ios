@@ -1,17 +1,32 @@
 # LocalStock Concierge
 
-LocalStock Concierge is a fully local iOS inventory concierge prototype.
+LocalStock Concierge is an iOS inventory concierge prototype with local AI and optional Supabase household sharing.
 
-It keeps inventory, shopping, receipt OCR, and AI tool-call decisions on device:
+It keeps receipt OCR, Gemma inference, and AI tool-call decisions on device, while inventory data can be shared through a Supabase database protected by Row Level Security:
 
 - SwiftUI app shell with Home, Shopping, Inventory, Receipt, Concierge, and Settings tabs.
-- SwiftData persistence for products, inventory events, shopping items, wish items, receipts, and app settings.
+- SwiftData persistence as an offline cache for products, inventory events, shopping items, wish items, receipts, and app settings.
+- Supabase Auth magic-link login plus household-scoped tables for shared inventory.
 - Vision OCR for receipt images.
 - Gemma 4 E2B-it model bootstrap that downloads `gemma-4-E2B-it.litertlm` to the app Documents directory on first launch.
 - LiteRT-LM Swift package integration behind `LocalLLMService`.
 - Safe JSON function-calling layer that validates model output before mutating SwiftData.
 - Optional Core NFC service shell for deep-link based opening/restock flows.
+- Generated app icon and in-app concierge artwork.
 - GitHub Actions unsigned IPA build on a free public macOS runner.
+
+## Supabase setup
+
+Run `supabase/schema.sql` in the Supabase SQL Editor. The schema creates `localstock_*` tables, enables RLS, scopes all reads/writes by household membership, and adds an authenticated `localstock_join_household` RPC for invite-code joining.
+
+Pass the values as Xcode build settings, or create a local `Config/Supabase.xcconfig` from the example file and wire it into your local Xcode project:
+
+```xcconfig
+SUPABASE_URL = https:/$()/YOUR_PROJECT_REF.supabase.co
+SUPABASE_PUBLISHABLE_KEY = sb_publishable_YOUR_KEY
+```
+
+The publishable key is safe in the client only because RLS is enabled. Do not put a service-role key in the iOS app or in this public repository.
 
 ## Local development
 

@@ -36,6 +36,9 @@ struct RootTabView: View {
         .task {
             appState.bootstrapIfNeeded(modelContext: modelContext)
         }
+        .onOpenURL { url in
+            appState.handleAuthCallback(url, modelContext: modelContext)
+        }
         .sheet(isPresented: $state.isModelSetupPresented) {
             ModelDownloadView()
                 .interactiveDismissDisabled(!appState.modelManager.isModelReady)

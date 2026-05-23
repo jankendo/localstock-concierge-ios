@@ -17,51 +17,64 @@ struct ReceiptView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    captureControls
+            ZStack {
+                LinearGradient(
+                    colors: [StockTheme.lemon.opacity(0.16), StockTheme.softBackground, StockTheme.sky.opacity(0.12)],
+                    startPoint: .top,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
 
-                    if isProcessing {
-                        ProgressView("レシートを読み取り中")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                    }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        captureControls
 
-                    if let lastError {
-                        Text(lastError)
-                            .font(.callout)
-                            .foregroundStyle(.red)
-                            .padding(12)
-                            .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                    }
-
-                    if !candidates.isEmpty {
-                        SectionHeader(title: "登録候補", systemImage: "checklist")
-                        candidateList
-                        Button {
-                            registerSelectedCandidates()
-                        } label: {
-                            Label("選択したものを在庫に追加", systemImage: "shippingbox.and.arrow.backward.fill")
+                        if isProcessing {
+                            ProgressView("レシートを読み取り中")
                                 .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(.white.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
                         }
-                        .buttonStyle(.borderedProminent)
-                    }
 
-                    if !rawText.isEmpty {
-                        DisclosureGroup("OCRテキスト") {
-                            Text(rawText)
-                                .font(.footnote.monospaced())
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.top, 8)
+                        if let lastError {
+                            Text(lastError)
+                                .font(.callout)
+                                .foregroundStyle(.red)
+                                .padding(12)
+                                .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                         }
-                        .padding(12)
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+
+                        if !candidates.isEmpty {
+                            SectionHeader(title: "登録候補", systemImage: "checklist")
+                            candidateList
+                            Button {
+                                Task {
+                                    await registerSelectedCandidates()
+                                }
+                            } label: {
+                                Label("選択したものを在庫に追加", systemImage: "shippingbox.and.arrow.backward.fill")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+
+                        if !rawText.isEmpty {
+                            DisclosureGroup("OCRテキスト") {
+                                Text(rawText)
+                                    .font(.footnote.monospaced())
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.top, 8)
+                            }
+                            .padding(12)
+                            .background(.white.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
+                        }
                     }
+                    .padding()
                 }
-                .padding()
             }
             .navigationTitle("レシート")
+            .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $isCameraPresented) {
                 CameraCaptureView { image in
                     Task { await process(image: image) }
@@ -76,9 +89,21 @@ struct ReceiptView: View {
 
     private var captureControls: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("撮影または写真選択で、Vision OCR と Gemma 解析の候補確認に進みます。")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                Image(systemName: "doc.text.viewfinder")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(StockTheme.sky, in: Circle())
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("レシート登録")
+                        .font(.headline.weight(.black))
+                    Text("候補を確認してから保存")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
 
             HStack {
                 Button {
@@ -97,7 +122,7 @@ struct ReceiptView: View {
             }
         }
         .padding(14)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(.white.opacity(0.88), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private var candidateList: some View {
@@ -124,7 +149,7 @@ struct ReceiptView: View {
                 }
                 .toggleStyle(.switch)
                 .padding(12)
-                .background(.background, in: RoundedRectangle(cornerRadius: 8))
+                .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(.quaternary)
@@ -161,7 +186,7 @@ struct ReceiptView: View {
             rawText = result.rawText
             let parse = await ReceiptParser.parse(rawText: result.rawText, llmService: appState.modelManager.makeLLMService())
             candidates = parse.items
-            _ = try repository.saveReceipt(
+            _ = try await appState.inventoryStore.saveReceipt(
                 rawText: result.rawText,
                 parsedJSON: parse.encodedJSON,
                 storeName: parse.storeName,
@@ -177,7 +202,8 @@ struct ReceiptView: View {
         }
     }
 
-    private func registerSelectedCandidates() {
+    @MainActor
+    private func registerSelectedCandidates() async {
         do {
             var count = 0
             for candidate in candidates where candidate.isSelected {
@@ -186,7 +212,7 @@ struct ReceiptView: View {
                 if let existing = matches.first {
                     product = existing
                 } else {
-                    product = try repository.createProduct(ProductDraft(
+                    product = try await appState.inventoryStore.createProduct(ProductDraft(
                         name: candidate.normalizedName,
                         category: candidate.category,
                         locationName: candidate.category.defaultLocationName,
@@ -198,7 +224,7 @@ struct ReceiptView: View {
                         aliases: [candidate.rawName]
                     ))
                 }
-                _ = try repository.recordPurchase(
+                _ = try await appState.inventoryStore.recordPurchase(
                     productId: product.id,
                     quantity: candidate.quantity,
                     unit: candidate.unit,

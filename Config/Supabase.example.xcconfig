@@ -1,0 +1,4 @@
+// Copy this file to Config/Supabase.xcconfig and fill in your project values.
+// Do not commit real production keys if the repository remains public.
+SUPABASE_URL = https:/$()/YOUR_PROJECT_REF.supabase.co
+SUPABASE_PUBLISHABLE_KEY = sb_publishable_YOUR_KEY

@@ -10,5 +10,6 @@ artifacts/
 *.dSYM.zip
 *.litertlm
 Package.resolved
+Config/Supabase.xcconfig
 xcuserdata/
 *.xcuserstate

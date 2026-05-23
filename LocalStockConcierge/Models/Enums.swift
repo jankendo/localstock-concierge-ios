@@ -33,6 +33,48 @@ enum ProductCategory: String, Codable, CaseIterable, Identifiable {
             return "その他"
         }
     }
+
+    var systemImage: String {
+        switch self {
+        case .dailyGoods:
+            return "house.fill"
+        case .laundry:
+            return "washer.fill"
+        case .bath:
+            return "shower.fill"
+        case .kitchen:
+            return "fork.knife"
+        case .food:
+            return "carrot.fill"
+        case .medicine:
+            return "cross.case.fill"
+        case .storage:
+            return "archivebox.fill"
+        case .other:
+            return "sparkles"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .dailyGoods:
+            return StockTheme.coral
+        case .laundry:
+            return StockTheme.mint
+        case .bath:
+            return StockTheme.sky
+        case .kitchen:
+            return StockTheme.lemon
+        case .food:
+            return .green
+        case .medicine:
+            return .red
+        case .storage:
+            return .purple
+        case .other:
+            return .secondary
+        }
+    }
 }
 
 enum ManagementType: String, Codable, CaseIterable, Identifiable {

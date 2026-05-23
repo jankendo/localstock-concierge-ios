@@ -15,46 +15,76 @@ struct ConciergeView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 12) {
-                            ForEach(messages) { message in
-                                ChatBubble(message: message)
-                                    .id(message.id)
-                            }
-                            if isResponding {
-                                ProgressView()
-                                    .padding()
-                            }
-                        }
-                        .padding()
-                    }
-                    .onChange(of: messages.count) { _, _ in
-                        if let last = messages.last {
-                            withAnimation {
-                                proxy.scrollTo(last.id, anchor: .bottom)
-                            }
-                        }
-                    }
-                }
+            ZStack {
+                LinearGradient(
+                    colors: [StockTheme.coral.opacity(0.12), StockTheme.softBackground, StockTheme.mint.opacity(0.12)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
 
-                Divider()
-                HStack(spacing: 10) {
-                    TextField("今日スーパーで買うものある？", text: $input, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(1...4)
-                    Button {
-                        send()
-                    } label: {
-                        Image(systemName: "paperplane.fill")
+                VStack(spacing: 0) {
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 12) {
+                                HStack(spacing: 12) {
+                                    Image("ConciergeHero")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 84, height: 84)
+                                        .accessibilityHidden(true)
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text("在庫コンシェルジュ")
+                                            .font(.title3.weight(.black))
+                                        Text("今日買うものを短く答えます")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                }
+                                .padding(14)
+                                .background(.white.opacity(0.84), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                                ForEach(messages) { message in
+                                    ChatBubble(message: message)
+                                        .id(message.id)
+                                }
+                                if isResponding {
+                                    ProgressView()
+                                        .padding()
+                                        .frame(maxWidth: .infinity)
+                                        .background(.white.opacity(0.76), in: RoundedRectangle(cornerRadius: 8))
+                                }
+                            }
+                            .padding()
+                        }
+                        .onChange(of: messages.count) { _, _ in
+                            if let last = messages.last {
+                                withAnimation {
+                                    proxy.scrollTo(last.id, anchor: .bottom)
+                                }
+                            }
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isResponding)
+
+                    HStack(spacing: 10) {
+                        TextField("今日スーパーで買うものある？", text: $input, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(1...4)
+                        Button {
+                            send()
+                        } label: {
+                            Image(systemName: "paperplane.fill")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isResponding)
+                    }
+                    .padding()
+                    .background(.ultraThinMaterial)
                 }
-                .padding()
             }
             .navigationTitle("コンシェルジュ")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -105,6 +135,7 @@ struct ConciergeView: View {
                 if let calls = try? ToolCallParser.parse(output), !calls.isEmpty {
                     let router = ToolRouter(repository: repository)
                     let results = try await router.executeModelOutput(output)
+                    try? await appState.inventoryStore.pushFullSnapshot()
                     return results.map(\.message).joined(separator: "\n")
                 }
                 return output
@@ -190,7 +221,7 @@ struct ChatBubble: View {
                 .font(.body)
                 .padding(12)
                 .foregroundStyle(message.role == .user ? .white : .primary)
-                .background(message.role == .user ? Color.blue : Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(message.role == .user ? StockTheme.sky : Color.white.opacity(0.88), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .textSelection(.enabled)
             if message.role == .assistant { Spacer(minLength: 32) }
         }

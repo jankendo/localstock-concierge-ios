@@ -2,17 +2,103 @@ import SwiftData
 import SwiftUI
 
 struct SettingsView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(AppState.self) private var appState
     @Query(sort: \Product.name) private var products: [Product]
     @Query(sort: \InventoryEvent.createdAt, order: .reverse) private var events: [InventoryEvent]
     @Query(sort: \ShoppingItem.createdAt) private var shoppingItems: [ShoppingItem]
     @State private var nfcService = NFCService()
     @State private var nfcMessage = "未実行"
+    @State private var email = ""
+    @State private var inviteCode = ""
 
     var body: some View {
         NavigationStack {
             List {
+                Section("Supabase共有") {
+                    HStack {
+                        Text("状態")
+                        Spacer()
+                        StatusPill(text: appState.cloudAuth.status.label, color: cloudStatusColor)
+                    }
+
+                    if let lastSyncAt = appState.inventoryStore.lastSyncAt {
+                        LabeledContent("最終同期", value: lastSyncAt.formatted(date: .abbreviated, time: .shortened))
+                    }
+
+                    Text(appState.inventoryStore.syncMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if let error = appState.inventoryStore.syncError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+
+                    switch appState.cloudAuth.status {
+                    case .unconfigured:
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("ビルド設定にSupabase URLとpublishable keyを入れると、同じ世帯の在庫を共同利用できます。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Label("RLSで世帯メンバーだけが読めます", systemImage: "lock.shield")
+                        }
+                    case .signedOut, .failed(_):
+                        TextField("メールアドレス", text: $email)
+                            .keyboardType(.emailAddress)
+                            .textContentType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+
+                        Button {
+                            sendMagicLink()
+                        } label: {
+                            Label("メールリンクでログイン", systemImage: "envelope.badge")
+                        }
+                        .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    case .signingIn:
+                        HStack {
+                            ProgressView()
+                            Text("ログインメールを送信中")
+                        }
+                    case .signedIn(_, let signedInEmail):
+                        if let signedInEmail {
+                            LabeledContent("アカウント", value: signedInEmail)
+                        }
+                        if let householdName = appState.inventoryStore.householdName {
+                            LabeledContent("世帯", value: householdName)
+                        }
+                        if let householdInviteCode = appState.inventoryStore.householdInviteCode {
+                            LabeledContent("招待コード", value: householdInviteCode)
+                        }
+
+                        HStack {
+                            TextField("招待コード", text: $inviteCode)
+                                .textInputAutocapitalization(.characters)
+                                .autocorrectionDisabled()
+                            Button {
+                                joinHousehold()
+                            } label: {
+                                Image(systemName: "person.badge.plus")
+                            }
+                            .disabled(inviteCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+
+                        Button {
+                            Task { await appState.inventoryStore.syncNow() }
+                        } label: {
+                            Label("今すぐ同期", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                        .disabled(appState.inventoryStore.isSyncing)
+
+                        Button(role: .destructive) {
+                            Task { await appState.cloudAuth.signOut() }
+                        } label: {
+                            Label("ログアウト", systemImage: "rectangle.portrait.and.arrow.right")
+                        }
+                    }
+                }
+
                 Section("Gemma 4") {
                     HStack {
                         Text("モデル")
@@ -35,7 +121,7 @@ struct SettingsView: View {
                 Section("プライバシー") {
                     Label("レシート画像は保存しない", systemImage: "photo.badge.checkmark")
                     Label("OCRとGemma推論は端末内処理", systemImage: "iphone.gen3")
-                    Label("クラウド同期なし", systemImage: "icloud.slash")
+                    Label("在庫共有だけSupabaseへ同期", systemImage: "person.2.badge.gearshape")
                 }
 
                 Section("NFC") {
@@ -57,7 +143,17 @@ struct SettingsView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(
+                LinearGradient(
+                    colors: [StockTheme.softBackground, StockTheme.mint.opacity(0.12), StockTheme.sky.opacity(0.10)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+            )
             .navigationTitle("設定")
+            .navigationBarTitleDisplayMode(.inline)
             .onAppear {
                 nfcService.onURI = handleNFCURL
                 nfcService.onMessage = { message in
@@ -65,10 +161,6 @@ struct SettingsView: View {
                 }
             }
         }
-    }
-
-    private var repository: SwiftDataInventoryRepository {
-        SwiftDataInventoryRepository(context: modelContext)
     }
 
     private var isDownloading: Bool {
@@ -82,7 +174,7 @@ struct SettingsView: View {
             return .green
         case .downloading:
             return .blue
-        case .failed:
+        case .failed(_):
             return .red
         case .checking, .missing:
             return .orange
@@ -104,11 +196,13 @@ struct SettingsView: View {
                     || product.aliases.map(\.normalizedForSearch).contains(where: { $0.contains(slug.normalizedForSearch) })
             }
             if let matched {
-                do {
-                    _ = try repository.recordOpened(productId: matched.id, quantity: 1, source: .nfc, note: url.absoluteString)
-                    appState.showToast("\(matched.name)をNFCから開封記録しました")
-                } catch {
-                    appState.showToast(error.localizedDescription)
+                Task {
+                    do {
+                        _ = try await appState.inventoryStore.recordOpened(productId: matched.id, quantity: 1, source: .nfc, note: url.absoluteString)
+                        appState.showToast("\(matched.name)をNFCから開封記録しました")
+                    } catch {
+                        appState.showToast(error.localizedDescription)
+                    }
                 }
             }
         }
@@ -165,6 +259,42 @@ struct SettingsView: View {
             appState.showToast("バックアップを書き出しました")
         } catch {
             appState.showToast(error.localizedDescription)
+        }
+    }
+
+    private var cloudStatusColor: Color {
+        switch appState.cloudAuth.status {
+        case .signedIn:
+            return .green
+        case .signingIn:
+            return .blue
+        case .failed:
+            return .red
+        case .unconfigured, .signedOut:
+            return .orange
+        }
+    }
+
+    private func sendMagicLink() {
+        Task {
+            do {
+                try await appState.cloudAuth.sendMagicLink(email: email)
+                appState.showToast("ログインメールを送信しました")
+            } catch {
+                appState.showToast(error.localizedDescription)
+            }
+        }
+    }
+
+    private func joinHousehold() {
+        Task {
+            do {
+                try await appState.inventoryStore.joinHousehold(inviteCode: inviteCode)
+                inviteCode = ""
+                appState.showToast("世帯に参加しました")
+            } catch {
+                appState.showToast(error.localizedDescription)
+            }
         }
     }
 }

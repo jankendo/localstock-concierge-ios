@@ -2,7 +2,6 @@ import SwiftData
 import SwiftUI
 
 struct InventoryView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(AppState.self) private var appState
     @Query(sort: \Product.name) private var products: [Product]
     @Query(sort: \InventoryEvent.createdAt, order: .reverse) private var events: [InventoryEvent]
@@ -11,17 +10,30 @@ struct InventoryView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(filteredProducts) { product in
-                    ProductInventoryRow(product: product, state: state(for: product)) {
-                        recordPurchase(product)
-                    } onOpened: {
-                        recordOpened(product)
+            ZStack {
+                LinearGradient(
+                    colors: [StockTheme.mint.opacity(0.16), StockTheme.softBackground, StockTheme.coral.opacity(0.10)],
+                    startPoint: .topLeading,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+
+                ScrollView {
+                    LazyVStack(spacing: 10) {
+                        ForEach(filteredProducts) { product in
+                            ProductInventoryRow(product: product, state: state(for: product)) {
+                                recordPurchase(product)
+                            } onOpened: {
+                                recordOpened(product)
+                            }
+                        }
                     }
+                    .padding()
                 }
             }
             .searchable(text: $searchText, prompt: "商品・別名で検索")
             .navigationTitle("在庫")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -46,29 +58,29 @@ struct InventoryView: View {
         }
     }
 
-    private var repository: SwiftDataInventoryRepository {
-        SwiftDataInventoryRepository(context: modelContext)
-    }
-
     private func state(for product: Product) -> InventoryStateSnapshot {
         InventoryCalculator.state(for: product, events: events.filter { $0.productId == product.id })
     }
 
     private func recordPurchase(_ product: Product) {
-        do {
-            _ = try repository.recordPurchase(productId: product.id, quantity: 1, unit: product.unit, source: .manual, confidence: 1, note: "在庫画面から購入")
-            appState.showToast("\(product.name)を購入として記録しました")
-        } catch {
-            appState.showToast(error.localizedDescription)
+        Task {
+            do {
+                _ = try await appState.inventoryStore.recordPurchase(productId: product.id, quantity: 1, unit: product.unit, source: .manual, confidence: 1, note: "在庫画面から購入")
+                appState.showToast("\(product.name)を購入として記録しました")
+            } catch {
+                appState.showToast(error.localizedDescription)
+            }
         }
     }
 
     private func recordOpened(_ product: Product) {
-        do {
-            _ = try repository.recordOpened(productId: product.id, quantity: 1, source: .manual, note: "在庫画面から開封")
-            appState.showToast("\(product.name)を開封として記録しました")
-        } catch {
-            appState.showToast(error.localizedDescription)
+        Task {
+            do {
+                _ = try await appState.inventoryStore.recordOpened(productId: product.id, quantity: 1, source: .manual, note: "在庫画面から開封")
+                appState.showToast("\(product.name)を開封として記録しました")
+            } catch {
+                appState.showToast(error.localizedDescription)
+            }
         }
     }
 }
@@ -82,6 +94,7 @@ struct ProductInventoryRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
+                CategoryBadge(category: product.category)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(product.name)
                         .font(.headline)
@@ -104,19 +117,39 @@ struct ProductInventoryRow: View {
             .foregroundStyle(.secondary)
 
             HStack {
-                Button("購入 +1", action: onPurchase)
+                Button(action: onPurchase) {
+                    Label("購入 +1", systemImage: "bag.fill")
+                }
                     .buttonStyle(.bordered)
-                Button("開封 +1", action: onOpened)
+                Button(action: onOpened) {
+                    Label("開封 +1", systemImage: "shippingbox.and.arrow.backward.fill")
+                }
                     .buttonStyle(.borderedProminent)
             }
         }
-        .padding(.vertical, 6)
+        .padding(14)
+        .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(state.status.tint.opacity(0.24), lineWidth: 1)
+        }
+    }
+}
+
+struct CategoryBadge: View {
+    let category: ProductCategory
+
+    var body: some View {
+        Image(systemName: category.systemImage)
+            .font(.subheadline.weight(.bold))
+            .foregroundStyle(.white)
+            .frame(width: 34, height: 34)
+            .background(category.tint, in: Circle())
     }
 }
 
 struct ProductEditorView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
     @Environment(AppState.self) private var appState
     @State private var name = ""
     @State private var category: ProductCategory = .dailyGoods
@@ -164,23 +197,24 @@ struct ProductEditorView: View {
     }
 
     private func save() {
-        do {
-            let repository = SwiftDataInventoryRepository(context: modelContext)
-            _ = try repository.createProduct(ProductDraft(
-                name: name,
-                category: category,
-                locationName: locationName.isEmpty ? "未設定" : locationName,
-                unit: unit.isEmpty ? "個" : unit,
-                managementType: managementType,
-                minStock: minStock,
-                idealStock: idealStock,
-                cycleDays: nil,
-                aliases: []
-            ))
-            appState.showToast("商品を追加しました")
-            dismiss()
-        } catch {
-            appState.showToast(error.localizedDescription)
+        Task {
+            do {
+                _ = try await appState.inventoryStore.createProduct(ProductDraft(
+                    name: name,
+                    category: category,
+                    locationName: locationName.isEmpty ? "未設定" : locationName,
+                    unit: unit.isEmpty ? "個" : unit,
+                    managementType: managementType,
+                    minStock: minStock,
+                    idealStock: idealStock,
+                    cycleDays: nil,
+                    aliases: []
+                ))
+                appState.showToast("商品を追加しました")
+                dismiss()
+            } catch {
+                appState.showToast(error.localizedDescription)
+            }
         }
     }
 }

@@ -12,6 +12,8 @@ final class AppState {
 
     let modelManager = GemmaModelManager()
     let notificationService = NotificationService()
+    let cloudAuth = SupabaseAuthController()
+    let inventoryStore = InventoryStore()
 
     private var hasBootstrapped = false
 
@@ -19,14 +21,34 @@ final class AppState {
         guard !hasBootstrapped else { return }
         hasBootstrapped = true
 
+        inventoryStore.configure(modelContext: modelContext, authController: cloudAuth)
         SeedData.ensureSeeded(in: modelContext)
         modelManager.refreshState()
         isModelSetupPresented = !modelManager.isModelReady
         notificationService.requestAuthorizationIfNeeded()
+
+        Task {
+            await cloudAuth.refreshSession()
+            inventoryStore.configure(modelContext: modelContext, authController: cloudAuth)
+            await inventoryStore.syncNow()
+        }
     }
 
     func showToast(_ message: String) {
         latestToast = message
+    }
+
+    func handleAuthCallback(_ url: URL, modelContext: ModelContext) {
+        Task {
+            do {
+                try await cloudAuth.handleOpenURL(url)
+                inventoryStore.configure(modelContext: modelContext, authController: cloudAuth)
+                await inventoryStore.syncNow()
+                showToast("Supabase同期を開始しました")
+            } catch {
+                showToast(error.localizedDescription)
+            }
+        }
     }
 }
 
