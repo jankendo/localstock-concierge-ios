@@ -159,7 +159,7 @@ begin
 end;
 $$;
 
-create or replace function public.localstock_join_household(invite_code_input text)
+create or replace function private.localstock_join_household(invite_code_input text)
 returns uuid
 language plpgsql
 security definer
@@ -190,13 +190,32 @@ begin
 end;
 $$;
 
+create or replace function public.localstock_join_household(invite_code_input text)
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$
+  select private.localstock_join_household(invite_code_input);
+$$;
+
 grant usage on schema private to authenticated;
 grant execute on function private.localstock_is_household_member(uuid) to authenticated;
 grant execute on function private.localstock_is_household_owner(uuid) to authenticated;
 grant execute on function private.localstock_household_created_by(uuid, uuid) to authenticated;
+grant execute on function private.localstock_join_household(text) to authenticated;
 revoke execute on function public.localstock_join_household(text) from public;
 revoke execute on function public.localstock_join_household(text) from anon;
 grant execute on function public.localstock_join_household(text) to authenticated;
+
+grant usage on schema public to authenticated;
+grant select, insert, update on table public.localstock_households to authenticated;
+grant select, insert on table public.localstock_household_members to authenticated;
+grant select, insert, update on table public.localstock_products to authenticated;
+grant select, insert, update on table public.localstock_inventory_events to authenticated;
+grant select, insert, update on table public.localstock_shopping_items to authenticated;
+grant select, insert, update on table public.localstock_wish_items to authenticated;
+grant select, insert, update on table public.localstock_receipts to authenticated;
 
 drop trigger if exists localstock_households_touch_updated_at on public.localstock_households;
 create trigger localstock_households_touch_updated_at
@@ -266,21 +285,45 @@ with check (
 );
 
 drop policy if exists "localstock products are household scoped" on public.localstock_products;
+drop policy if exists "localstock products can be inserted by members" on public.localstock_products;
+drop policy if exists "localstock products can be updated by members" on public.localstock_products;
 create policy "localstock products are household scoped"
 on public.localstock_products
-for all to authenticated
+for select to authenticated
+using (private.localstock_is_household_member(household_id));
+
+create policy "localstock products can be inserted by members"
+on public.localstock_products
+for insert to authenticated
+with check (private.localstock_is_household_member(household_id));
+
+create policy "localstock products can be updated by members"
+on public.localstock_products
+for update to authenticated
 using (private.localstock_is_household_member(household_id))
 with check (private.localstock_is_household_member(household_id));
 
 drop policy if exists "localstock events are household scoped" on public.localstock_inventory_events;
+drop policy if exists "localstock events can be inserted by members" on public.localstock_inventory_events;
+drop policy if exists "localstock events can be updated by members" on public.localstock_inventory_events;
 create policy "localstock events are household scoped"
 on public.localstock_inventory_events
-for all to authenticated
-using (private.localstock_is_household_member(household_id))
+for select to authenticated
+using (private.localstock_is_household_member(household_id));
+
+create policy "localstock events can be inserted by members"
+on public.localstock_inventory_events
+for insert to authenticated
 with check (
   private.localstock_is_household_member(household_id)
   and created_by = (select auth.uid())
 );
+
+create policy "localstock events can be updated by members"
+on public.localstock_inventory_events
+for update to authenticated
+using (private.localstock_is_household_member(household_id))
+with check (private.localstock_is_household_member(household_id));
 
 drop policy if exists "localstock shopping items are household scoped" on public.localstock_shopping_items;
 drop policy if exists "localstock shopping items can be inserted by members" on public.localstock_shopping_items;

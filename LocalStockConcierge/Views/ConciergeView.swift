@@ -133,9 +133,8 @@ struct ConciergeView: View {
                 let queue = LLMInferenceQueue(service: service)
                 let output = try await queue.enqueue(prompt: prompt, mode: .chat)
                 if let calls = try? ToolCallParser.parse(output), !calls.isEmpty {
-                    let router = ToolRouter(repository: repository)
+                    let router = ToolRouter(repository: repository, inventoryStore: appState.inventoryStore)
                     let results = try await router.executeModelOutput(output)
-                    try? await appState.inventoryStore.pushFullSnapshot()
                     return results.map(\.message).joined(separator: "\n")
                 }
                 return output

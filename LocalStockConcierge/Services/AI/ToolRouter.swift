@@ -16,9 +16,11 @@ struct ParsedToolCall {
 @MainActor
 final class ToolRouter {
     private let repository: any InventoryRepository
+    private let inventoryStore: InventoryStore?
 
-    init(repository: any InventoryRepository) {
+    init(repository: any InventoryRepository, inventoryStore: InventoryStore? = nil) {
         self.repository = repository
+        self.inventoryStore = inventoryStore
     }
 
     func executeModelOutput(_ rawOutput: String) async throws -> [ToolExecutionResult] {
@@ -30,13 +32,13 @@ final class ToolRouter {
                 results.append(ToolExecutionResult(name: call.name, message: "確認が必要です: \(call.name)", requiresConfirmation: true))
                 continue
             }
-            results.append(try execute(call))
+            results.append(try await execute(call))
         }
 
         return results
     }
 
-    func execute(_ call: ParsedToolCall) throws -> ToolExecutionResult {
+    func execute(_ call: ParsedToolCall) async throws -> ToolExecutionResult {
         switch call.name {
         case "search_products":
             let query = try call.string("query")
@@ -48,20 +50,32 @@ final class ToolRouter {
             let quantity = try call.double("quantity", defaultValue: 1)
             let unit = call.optionalString("unit")
             let confidence = try call.double("confidence", defaultValue: 0.8)
-            _ = try repository.recordPurchase(productId: product.id, quantity: quantity, unit: unit, source: .llmToolCall, confidence: confidence, note: "AI tool call")
+            if let inventoryStore {
+                _ = try await inventoryStore.recordPurchase(productId: product.id, quantity: quantity, unit: unit, source: .llmToolCall, confidence: confidence, note: "AI tool call")
+            } else {
+                _ = try repository.recordPurchase(productId: product.id, quantity: quantity, unit: unit, source: .llmToolCall, confidence: confidence, note: "AI tool call")
+            }
             return ToolExecutionResult(name: call.name, message: "\(product.name)を購入として記録しました。", requiresConfirmation: false)
 
         case "record_opened":
             let product = try resolveProduct(call)
             let quantity = try call.double("quantity", defaultValue: 1)
-            _ = try repository.recordOpened(productId: product.id, quantity: quantity, source: .llmToolCall, note: "AI tool call")
+            if let inventoryStore {
+                _ = try await inventoryStore.recordOpened(productId: product.id, quantity: quantity, source: .llmToolCall, note: "AI tool call")
+            } else {
+                _ = try repository.recordOpened(productId: product.id, quantity: quantity, source: .llmToolCall, note: "AI tool call")
+            }
             return ToolExecutionResult(name: call.name, message: "\(product.name)を開封として記録しました。", requiresConfirmation: false)
 
         case "correct_inventory":
             let product = try resolveProduct(call)
             let stock = try call.double("estimated_stock")
             let reason = call.optionalString("reason") ?? "AI補正"
-            _ = try repository.correctInventory(productId: product.id, estimatedStock: stock, reason: reason)
+            if let inventoryStore {
+                _ = try await inventoryStore.correctInventory(productId: product.id, estimatedStock: stock, reason: reason)
+            } else {
+                _ = try repository.correctInventory(productId: product.id, estimatedStock: stock, reason: reason)
+            }
             return ToolExecutionResult(name: call.name, message: "\(product.name)の在庫を補正しました。", requiresConfirmation: false)
 
         case "add_shopping_item":
@@ -70,20 +84,42 @@ final class ToolRouter {
             guard let name else {
                 throw ToolRouterError.invalidArguments("name")
             }
-            let item = try repository.addShoppingItem(
-                productId: product?.id,
-                name: name,
-                quantity: try call.double("quantity", defaultValue: 1),
-                unit: call.optionalString("unit") ?? product?.unit,
-                storeType: StoreType(rawValue: call.optionalString("store_type") ?? "") ?? product?.category.defaultStoreType ?? .any,
-                priority: Priority(rawValue: call.optionalString("priority") ?? "") ?? .medium,
-                reason: call.optionalString("reason") ?? "AI提案"
-            )
+            let quantity = try call.double("quantity", defaultValue: 1)
+            let unit = call.optionalString("unit") ?? product?.unit
+            let storeType = StoreType(rawValue: call.optionalString("store_type") ?? "") ?? product?.category.defaultStoreType ?? .any
+            let priority = Priority(rawValue: call.optionalString("priority") ?? "") ?? .medium
+            let reason = call.optionalString("reason") ?? "AI提案"
+            let item: ShoppingItem
+            if let inventoryStore {
+                item = try await inventoryStore.addShoppingItem(
+                    productId: product?.id,
+                    name: name,
+                    quantity: quantity,
+                    unit: unit,
+                    storeType: storeType,
+                    priority: priority,
+                    reason: reason
+                )
+            } else {
+                item = try repository.addShoppingItem(
+                    productId: product?.id,
+                    name: name,
+                    quantity: quantity,
+                    unit: unit,
+                    storeType: storeType,
+                    priority: priority,
+                    reason: reason
+                )
+            }
             return ToolExecutionResult(name: call.name, message: "\(item.name)を買い物リストに追加しました。", requiresConfirmation: false)
 
         case "complete_shopping_item":
             let id = try UUID(uuidString: call.string("shopping_item_id")).orThrow(ToolRouterError.invalidArguments("shopping_item_id"))
-            try repository.completeShoppingItem(id: id)
+            if let inventoryStore {
+                try await inventoryStore.completeShoppingItem(id: id)
+            } else {
+                try repository.completeShoppingItem(id: id)
+            }
             return ToolExecutionResult(name: call.name, message: "買い物リストを購入済みにしました。", requiresConfirmation: false)
 
         case "suggest_restock":

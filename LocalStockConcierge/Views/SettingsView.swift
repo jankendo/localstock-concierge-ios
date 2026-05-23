@@ -268,7 +268,7 @@ struct SettingsView: View {
             return .green
         case .signingIn:
             return .blue
-        case .failed:
+        case .failed(_):
             return .red
         case .unconfigured, .signedOut:
             return .orange

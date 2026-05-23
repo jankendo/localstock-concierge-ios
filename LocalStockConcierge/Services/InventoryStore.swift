@@ -79,22 +79,32 @@ final class InventoryStore {
     @discardableResult
     func recordPurchase(productId: UUID, quantity: Double, unit: String?, source: EventSource, confidence: Double, note: String?) async throws -> InventoryEvent {
         let event = try requireRepository().recordPurchase(productId: productId, quantity: quantity, unit: unit, source: source, confidence: confidence, note: note)
-        try await pushFullSnapshot()
+        try await pushEvents([event])
+        try await pushShoppingItems()
         return event
     }
 
     @discardableResult
     func recordOpened(productId: UUID, quantity: Double, source: EventSource, note: String?) async throws -> InventoryEvent {
         let event = try requireRepository().recordOpened(productId: productId, quantity: quantity, source: source, note: note)
-        try await pushFullSnapshot()
+        try await pushEvents([event])
+        try await pushShoppingItems()
         return event
     }
 
     @discardableResult
     func addShoppingItem(productId: UUID?, name: String, quantity: Double?, unit: String?, storeType: StoreType, priority: Priority, reason: String) async throws -> ShoppingItem {
         let item = try requireRepository().addShoppingItem(productId: productId, name: name, quantity: quantity, unit: unit, storeType: storeType, priority: priority, reason: reason)
-        try await pushFullSnapshot()
+        try await pushShoppingItems()
         return item
+    }
+
+    @discardableResult
+    func correctInventory(productId: UUID, estimatedStock: Double, reason: String) async throws -> InventoryEvent {
+        let event = try requireRepository().correctInventory(productId: productId, estimatedStock: estimatedStock, reason: reason)
+        try await pushEvents([event])
+        try await pushShoppingItems()
+        return event
     }
 
     func completeShoppingItem(id: UUID) async throws {
@@ -147,6 +157,12 @@ final class InventoryStore {
     private func pushProducts(_ products: [Product]) async throws {
         guard canUseCloud else { return }
         try await cloud?.upsertProducts(products)
+        lastSyncAt = .now
+    }
+
+    private func pushEvents(_ events: [InventoryEvent]) async throws {
+        guard canUseCloud else { return }
+        try await cloud?.upsertEvents(events)
         lastSyncAt = .now
     }
 
