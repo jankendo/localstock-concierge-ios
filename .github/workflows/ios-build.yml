@@ -11,6 +11,8 @@ jobs:
     name: Build unsigned IPA
     runs-on: macos-latest
     timeout-minutes: 60
+    env:
+      GIT_LFS_SKIP_SMUDGE: "1"
 
     steps:
       - name: Checkout
@@ -23,6 +25,12 @@ jobs:
 
       - name: Install XcodeGen
         run: brew install xcodegen
+
+      - name: Disable Git LFS smudge for SwiftPM checkouts
+        run: |
+          git lfs install --skip-smudge || true
+          git config --global filter.lfs.smudge "git-lfs smudge --skip -- %f" || true
+          git config --global filter.lfs.process "git-lfs filter-process --skip" || true
 
       - name: Generate Xcode project
         run: xcodegen generate
