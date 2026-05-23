@@ -180,11 +180,8 @@ final class SwiftDataInventoryRepository: InventoryRepository {
     }
 
     func activeShoppingItems() throws -> [ShoppingItem] {
-        let descriptor = FetchDescriptor<ShoppingItem>(
-            predicate: #Predicate { $0.status == ShoppingStatus.active },
-            sortBy: [SortDescriptor(\.createdAt)]
-        )
-        return try context.fetch(descriptor).sorted { lhs, rhs in
+        let descriptor = FetchDescriptor<ShoppingItem>(sortBy: [SortDescriptor(\.createdAt)])
+        return try context.fetch(descriptor).filter { $0.status == .active }.sorted { lhs, rhs in
             if lhs.priority.rank == rhs.priority.rank {
                 return lhs.createdAt < rhs.createdAt
             }
