@@ -20,6 +20,7 @@ struct HomeView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         hero
+                        quickActions
                         metrics
 
                         SectionHeader(title: "今日の提案", systemImage: "lightbulb.max.fill")
@@ -78,7 +79,7 @@ struct HomeView: View {
                 Text("今日の在庫")
                     .font(.system(size: 32, weight: .black, design: .rounded))
                     .foregroundStyle(StockTheme.ink)
-                Text("今買うものだけ見ます")
+                Text("迷ったら下の大きいボタンから始めます")
                     .font(.headline.weight(.bold))
                     .foregroundStyle(.secondary)
             }
@@ -94,6 +95,50 @@ struct HomeView: View {
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(.white.opacity(0.75), lineWidth: 1)
+        }
+    }
+
+    private var quickActions: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "すぐやる", systemImage: "hand.tap.fill")
+
+            VStack(spacing: 10) {
+                NextActionCard(
+                    title: "レシートを読む",
+                    subtitle: "買ったものを写真から入れる",
+                    systemImage: "doc.text.viewfinder",
+                    tint: StockTheme.sky
+                ) {
+                    appState.selectedTab = .receipt
+                }
+
+                NextActionCard(
+                    title: "買い物を見る",
+                    subtitle: "今日買うものだけ確認する",
+                    systemImage: "cart.fill",
+                    tint: StockTheme.mint
+                ) {
+                    appState.selectedTab = .shopping
+                }
+
+                NextActionCard(
+                    title: "ストックを開けた",
+                    subtitle: "在庫で「開けた」を押す",
+                    systemImage: "shippingbox.and.arrow.backward.fill",
+                    tint: StockTheme.coral
+                ) {
+                    appState.selectedTab = .inventory
+                }
+
+                NextActionCard(
+                    title: "家族で共有する",
+                    subtitle: "Supabaseログインと招待コード",
+                    systemImage: "person.2.fill",
+                    tint: .orange
+                ) {
+                    appState.selectedTab = .settings
+                }
+            }
         }
     }
 

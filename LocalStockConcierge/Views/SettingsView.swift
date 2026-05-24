@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
@@ -20,6 +21,8 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section("Supabase共有") {
+                    shareFlow
+
                     HStack {
                         Text("状態")
                         Spacer()
@@ -85,6 +88,12 @@ struct SettingsView: View {
                         }
                         if let householdInviteCode = appState.inventoryStore.householdInviteCode {
                             LabeledContent("招待コード", value: householdInviteCode)
+                            Button {
+                                UIPasteboard.general.string = householdInviteCode
+                                appState.showToast("招待コードをコピーしました")
+                            } label: {
+                                Label("招待コードをコピー", systemImage: "doc.on.doc")
+                            }
                         }
 
                         HStack {
@@ -189,6 +198,14 @@ struct SettingsView: View {
         isEditingSupabaseConfig || isCloudUnconfigured
     }
 
+    private var shareFlow: some View {
+        FlowStepStrip(steps: [
+            FlowStep(title: "接続を保存", detail: "最初の1台でURLとキーを入れる", tint: StockTheme.sky),
+            FlowStep(title: "メールでログイン", detail: "届いたリンクをこのiPhoneで開く", tint: StockTheme.mint),
+            FlowStep(title: "家族を招待", detail: "招待コードを渡す、または入力する", tint: StockTheme.coral)
+        ])
+    }
+
     @ViewBuilder
     private var supabaseConfigEditor: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -238,7 +255,7 @@ struct SettingsView: View {
         Button {
             sendMagicLink()
         } label: {
-            Label("メールリンクでログイン", systemImage: "envelope.badge")
+            Label("ログインメールを送る", systemImage: "envelope.badge")
         }
         .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }

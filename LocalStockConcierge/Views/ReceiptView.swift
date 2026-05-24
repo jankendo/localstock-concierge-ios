@@ -28,9 +28,10 @@ struct ReceiptView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         captureControls
+                        receiptFlow
 
                         if isProcessing {
-                            ProgressView("レシートを読み取り中")
+                            ProgressView("文字を読み取り中")
                                 .frame(maxWidth: .infinity)
                                 .padding()
                                 .background(.white.opacity(0.82), in: RoundedRectangle(cornerRadius: 8))
@@ -98,7 +99,7 @@ struct ReceiptView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("レシート登録")
                         .font(.headline.weight(.black))
-                    Text("候補を確認してから保存")
+                    Text("撮る、選ぶ、確認する")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
@@ -109,13 +110,13 @@ struct ReceiptView: View {
                 Button {
                     isCameraPresented = true
                 } label: {
-                    Label("撮影", systemImage: "camera.fill")
+                    Label("撮る", systemImage: "camera.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
 
                 PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                    Label("写真", systemImage: "photo.on.rectangle")
+                    Label("写真から選ぶ", systemImage: "photo.on.rectangle")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -123,6 +124,14 @@ struct ReceiptView: View {
         }
         .padding(14)
         .background(.white.opacity(0.88), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private var receiptFlow: some View {
+        FlowStepStrip(steps: [
+            FlowStep(title: "レシートを撮る", detail: "明るい場所で全体を入れる", tint: StockTheme.sky),
+            FlowStep(title: "候補にチェック", detail: "いらない行は外せます", tint: StockTheme.lemon),
+            FlowStep(title: "在庫に追加", detail: "保存前に必ず確認できます", tint: StockTheme.mint)
+        ])
     }
 
     private var candidateList: some View {

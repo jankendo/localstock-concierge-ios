@@ -45,6 +45,8 @@ struct ConciergeView: View {
                                 .padding(14)
                                 .background(.white.opacity(0.84), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
+                                quickPromptPanel
+
                                 ForEach(messages) { message in
                                     ChatBubble(message: message)
                                         .id(message.id)
@@ -97,6 +99,36 @@ struct ConciergeView: View {
                 }
             }
         }
+    }
+
+    private var quickPromptPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("よく使う相談")
+                .font(.headline.weight(.black))
+
+            VStack(spacing: 8) {
+                quickPromptButton("今日買うもの", "cart.fill") {
+                    quickAsk("今日買うものある？")
+                }
+                quickPromptButton("ドラッグストアで買うもの", "cross.case.fill") {
+                    quickAsk("ドラッグストアで買うものある？")
+                }
+                quickPromptButton("開けたことを記録", "shippingbox.and.arrow.backward.fill") {
+                    quickAsk("トイレットペーパーを開けた")
+                }
+            }
+        }
+        .padding(14)
+        .background(.white.opacity(0.84), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func quickPromptButton(_ title: String, _ systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline.weight(.bold))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.bordered)
     }
 
     private var repository: SwiftDataInventoryRepository {

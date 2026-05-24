@@ -11,11 +11,17 @@ struct ModelDownloadView: View {
                     Image(systemName: "sparkles")
                         .font(.largeTitle.weight(.bold))
                         .foregroundStyle(.blue)
-                    Text("Gemma 4 モデルを準備")
+                    Text("AI相談を使う準備")
                         .font(.title2.weight(.bold))
-                    Text("初回だけ Gemma 4 E2B-it の LiteRT-LM モデルを端末内 Documents に保存します。推論とレシート解析は端末内で実行します。")
+                    Text("初回だけ大きなAIモデルをこのiPhoneに保存します。保存後は、相談とレシート解析を端末内で使えます。")
                         .foregroundStyle(.secondary)
                 }
+
+                FlowStepStrip(steps: [
+                    FlowStep(title: "ダウンロード", detail: "Wi-Fiでの実行がおすすめです", tint: StockTheme.sky),
+                    FlowStep(title: "端末内に保存", detail: "レシートや会話は外部APIに送りません", tint: StockTheme.mint),
+                    FlowStep(title: "相談を開始", detail: "買うものや開封記録を話せます", tint: StockTheme.coral)
+                ])
 
                 VStack(alignment: .leading, spacing: 12) {
                     StatusPill(text: appState.modelManager.state.label, color: statusColor, systemImage: "arrow.down.circle")

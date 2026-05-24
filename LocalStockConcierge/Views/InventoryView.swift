@@ -20,11 +20,17 @@ struct InventoryView: View {
 
                 ScrollView {
                     LazyVStack(spacing: 10) {
-                        ForEach(filteredProducts) { product in
-                            ProductInventoryRow(product: product, state: state(for: product)) {
-                                recordPurchase(product)
-                            } onOpened: {
-                                recordOpened(product)
+                        inventoryGuide
+
+                        if filteredProducts.isEmpty {
+                            EmptyStateView(systemImage: "shippingbox", title: "商品がありません", message: "右上の＋から、よく買う日用品を登録できます。")
+                        } else {
+                            ForEach(filteredProducts) { product in
+                                ProductInventoryRow(product: product, state: state(for: product)) {
+                                    recordPurchase(product)
+                                } onOpened: {
+                                    recordOpened(product)
+                                }
                             }
                         }
                     }
@@ -47,6 +53,15 @@ struct InventoryView: View {
                 ProductEditorView()
             }
         }
+    }
+
+    private var inventoryGuide: some View {
+        FriendlyNotice(
+            title: "使うたびの記録はいりません",
+            message: "買った時は「買った」、予備を開けた時だけ「開けた」を押します。",
+            systemImage: "hand.tap.fill",
+            tint: StockTheme.mint
+        )
     }
 
     private var filteredProducts: [Product] {
@@ -107,7 +122,7 @@ struct ProductInventoryRow: View {
             }
 
             HStack(spacing: 14) {
-                Label("\(state.estimatedStock.formattedStock)\(product.unit)", systemImage: "shippingbox")
+                Label("予備 \(state.estimatedStock.formattedStock)\(product.unit)", systemImage: "shippingbox")
                 Label("最低 \(product.minStock.formattedStock)", systemImage: "line.3.horizontal.decrease")
                 if let date = state.lastOpenedAt {
                     Label(date.formatted(date: .numeric, time: .omitted), systemImage: "calendar")
@@ -118,11 +133,13 @@ struct ProductInventoryRow: View {
 
             HStack {
                 Button(action: onPurchase) {
-                    Label("購入 +1", systemImage: "bag.fill")
+                    Label("買った", systemImage: "bag.fill")
+                        .frame(maxWidth: .infinity)
                 }
                     .buttonStyle(.bordered)
                 Button(action: onOpened) {
-                    Label("開封 +1", systemImage: "shippingbox.and.arrow.backward.fill")
+                    Label("開けた", systemImage: "shippingbox.and.arrow.backward.fill")
+                        .frame(maxWidth: .infinity)
                 }
                     .buttonStyle(.borderedProminent)
             }

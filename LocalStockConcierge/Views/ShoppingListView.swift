@@ -24,6 +24,12 @@ struct ShoppingListView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         addPanel
+                        FriendlyNotice(
+                            title: "買うものと、いつか欲しいものを分けます",
+                            message: "今日必要なものは「買う」、検討中のものは「ほしい」に入れます。",
+                            systemImage: "list.bullet.clipboard",
+                            tint: StockTheme.sky
+                        )
 
                         SectionHeader(title: "未購入", systemImage: "cart.fill")
                         if activeItems.isEmpty {
@@ -237,13 +243,6 @@ struct ShoppingRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            Button(action: onComplete) {
-                Image(systemName: "circle")
-                    .font(.title2.weight(.semibold))
-            }
-            .buttonStyle(.borderless)
-            .tint(StockTheme.mint)
-
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(item.name)
@@ -266,6 +265,11 @@ struct ShoppingRow: View {
                 Text(item.storeType.label)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                Button(action: onComplete) {
+                    Label("買った", systemImage: "checkmark.circle")
+                }
+                .buttonStyle(.bordered)
+                .tint(StockTheme.mint)
             }
         }
         .padding(14)
@@ -283,13 +287,6 @@ struct WishRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            Button(action: onPurchased) {
-                Image(systemName: "checkmark.circle")
-                    .font(.title3.weight(.semibold))
-            }
-            .buttonStyle(.borderless)
-            .tint(StockTheme.coral)
-
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.name)
                     .font(.headline)
@@ -309,7 +306,14 @@ struct WishRow: View {
 
             Spacer()
 
-            StatusPill(text: item.priority.label, color: item.priority.color)
+            VStack(alignment: .trailing, spacing: 6) {
+                StatusPill(text: item.priority.label, color: item.priority.color)
+                Button(action: onPurchased) {
+                    Label("買った", systemImage: "checkmark.circle")
+                }
+                .buttonStyle(.bordered)
+                .tint(StockTheme.coral)
+            }
         }
         .padding(14)
         .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
