@@ -7,6 +7,7 @@ It keeps receipt OCR, Gemma inference, and AI tool-call decisions on device, whi
 - SwiftUI app shell with Home, Shopping, Inventory, Receipt, Concierge, and Settings tabs.
 - SwiftData persistence as an offline cache for products, inventory events, shopping items, wish items, receipts, and app settings.
 - Supabase Auth magic-link login plus household-scoped tables for shared inventory.
+- Household-shared shopping and wish lists backed by Supabase.
 - Vision OCR for receipt images.
 - Gemma 4 E2B-it model bootstrap that downloads `gemma-4-E2B-it.litertlm` to the app Documents directory on first launch.
 - LiteRT-LM Swift package integration behind `LocalLLMService`.
@@ -17,7 +18,7 @@ It keeps receipt OCR, Gemma inference, and AI tool-call decisions on device, whi
 
 ## Supabase setup
 
-Run `supabase/schema.sql` in the Supabase SQL Editor. The schema creates `localstock_*` tables, enables RLS, scopes all reads/writes by household membership, and adds an authenticated `localstock_join_household` RPC for invite-code joining.
+Run `supabase/schema.sql` in the Supabase SQL Editor. The schema creates `localstock_*` tables, enables RLS, scopes all reads/writes by household membership, and adds an authenticated `localstock_join_household` RPC for invite-code joining. Products, inventory events, shopping items, wish items, and receipt records are synchronized through those household-scoped tables.
 
 Pass the values as Xcode build settings, or create a local `Config/Supabase.xcconfig` from the example file and wire it into your local Xcode project:
 

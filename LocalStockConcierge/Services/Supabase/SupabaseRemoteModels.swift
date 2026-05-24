@@ -4,6 +4,7 @@ struct LocalStockRemoteSnapshot {
     var products: [Product]
     var events: [InventoryEvent]
     var shoppingItems: [ShoppingItem]
+    var wishItems: [WishItem]
     var receipts: [Receipt]
 }
 
@@ -429,6 +430,88 @@ struct RemoteShoppingUpdate: Encodable {
     enum CodingKeys: String, CodingKey {
         case status
         case completedAt = "completed_at"
+    }
+}
+
+struct RemoteWishItemRecord: Codable {
+    let id: UUID
+    let householdID: UUID
+    let name: String
+    let url: String?
+    let price: Int?
+    let priority: String
+    let status: String
+    let memo: String?
+    let createdAt: String?
+    let updatedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case householdID = "household_id"
+        case name
+        case url
+        case price
+        case priority
+        case status
+        case memo
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    func domainItem() -> WishItem {
+        WishItem(
+            id: id,
+            name: name,
+            url: url,
+            price: price,
+            priority: Priority(rawValue: priority) ?? .medium,
+            status: WishStatus(rawValue: status) ?? .active,
+            memo: memo,
+            createdAt: RemoteDate.parse(createdAt) ?? .now,
+            updatedAt: RemoteDate.parse(updatedAt) ?? .now
+        )
+    }
+}
+
+struct RemoteWishItemPayload: Encodable {
+    let id: UUID
+    let householdID: UUID
+    let name: String
+    let url: String?
+    let price: Int?
+    let priority: String
+    let status: String
+    let memo: String?
+    let createdBy: UUID
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case householdID = "household_id"
+        case name
+        case url
+        case price
+        case priority
+        case status
+        case memo
+        case createdBy = "created_by"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    init(item: WishItem, householdID: UUID, userID: UUID) {
+        self.id = item.id
+        self.householdID = householdID
+        self.name = item.name
+        self.url = item.url
+        self.price = item.price
+        self.priority = item.priority.rawValue
+        self.status = item.status.rawValue
+        self.memo = item.memo
+        self.createdBy = userID
+        self.createdAt = RemoteDate.format(item.createdAt)
+        self.updatedAt = RemoteDate.format(item.updatedAt)
     }
 }
 

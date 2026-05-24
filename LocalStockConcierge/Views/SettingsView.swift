@@ -7,6 +7,7 @@ struct SettingsView: View {
     @Query(sort: \Product.name) private var products: [Product]
     @Query(sort: \InventoryEvent.createdAt, order: .reverse) private var events: [InventoryEvent]
     @Query(sort: \ShoppingItem.createdAt) private var shoppingItems: [ShoppingItem]
+    @Query(sort: \WishItem.createdAt) private var wishItems: [WishItem]
     @State private var nfcService = NFCService()
     @State private var nfcMessage = "未実行"
     @State private var email = ""
@@ -326,6 +327,17 @@ struct SettingsView: View {
                     "priority": item.priority.rawValue,
                     "reason": item.reason,
                     "status": item.status.rawValue
+                ] as [String: Any]
+            },
+            "wish_items": wishItems.map { item in
+                [
+                    "id": item.id.uuidString,
+                    "name": item.name,
+                    "url": item.url as Any,
+                    "price": item.price as Any,
+                    "priority": item.priority.rawValue,
+                    "status": item.status.rawValue,
+                    "memo": item.memo as Any
                 ] as [String: Any]
             }
         ]

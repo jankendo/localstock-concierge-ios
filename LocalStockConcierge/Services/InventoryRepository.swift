@@ -14,6 +14,8 @@ protocol InventoryRepository {
     func addShoppingItem(productId: UUID?, name: String, quantity: Double?, unit: String?, storeType: StoreType, priority: Priority, reason: String) throws -> ShoppingItem
     func completeShoppingItem(id: UUID) throws
     func activeShoppingItems() throws -> [ShoppingItem]
+    func addWishItem(name: String, url: String?, price: Int?, priority: Priority, memo: String?) throws -> WishItem
+    func markWishPurchased(id: UUID) throws
     func events(for productId: UUID) throws -> [InventoryEvent]
     func allEvents() throws -> [InventoryEvent]
     func saveReceipt(rawText: String, parsedJSON: String?, storeName: String?, purchasedAt: Date?, totalAmount: Int?, imageLocalPath: String?) throws -> Receipt
@@ -189,6 +191,44 @@ final class SwiftDataInventoryRepository: InventoryRepository {
         }
     }
 
+    func addWishItem(name: String, url: String?, price: Int?, priority: Priority, memo: String?) throws -> WishItem {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmedName.normalizedForSearch
+        if let existing = try context.fetch(FetchDescriptor<WishItem>()).first(where: { item in
+            item.status == .active && item.name.normalizedForSearch == normalized
+        }) {
+            existing.priority = priority
+            existing.memo = memo?.nilIfBlank ?? existing.memo
+            existing.url = url?.nilIfBlank ?? existing.url
+            existing.price = price ?? existing.price
+            existing.updatedAt = .now
+            try context.save()
+            return existing
+        }
+
+        let item = WishItem(
+            name: trimmedName,
+            url: url?.nilIfBlank,
+            price: price,
+            priority: priority,
+            memo: memo?.nilIfBlank
+        )
+        context.insert(item)
+        try context.save()
+        return item
+    }
+
+    func markWishPurchased(id: UUID) throws {
+        var descriptor = FetchDescriptor<WishItem>(
+            predicate: #Predicate { $0.id == id }
+        )
+        descriptor.fetchLimit = 1
+        guard let item = try context.fetch(descriptor).first else { return }
+        item.status = .purchased
+        item.updatedAt = .now
+        try context.save()
+    }
+
     func events(for productId: UUID) throws -> [InventoryEvent] {
         let descriptor = FetchDescriptor<InventoryEvent>(
             predicate: #Predicate { $0.productId == productId },
@@ -268,6 +308,13 @@ enum InventoryRepositoryError: LocalizedError {
 private extension Optional where Wrapped == String {
     func joinedNote(with other: String?) -> String? {
         [self, other].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " / ")
+    }
+}
+
+private extension String {
+    var nilIfBlank: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 

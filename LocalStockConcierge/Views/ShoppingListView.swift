@@ -4,8 +4,12 @@ import SwiftUI
 struct ShoppingListView: View {
     @Environment(AppState.self) private var appState
     @Query(sort: \ShoppingItem.createdAt) private var items: [ShoppingItem]
+    @Query(sort: \WishItem.createdAt) private var wishItems: [WishItem]
+    @State private var addMode: ShoppingAddMode = .shopping
     @State private var newItemName = ""
     @State private var newItemStore: StoreType = .any
+    @State private var newWishPriority: Priority = .medium
+    @State private var newWishMemo = ""
 
     var body: some View {
         NavigationStack {
@@ -29,6 +33,19 @@ struct ShoppingListView: View {
                                 ForEach(activeItems) { item in
                                     ShoppingRow(item: item) {
                                         complete(item)
+                                    }
+                                }
+                            }
+                        }
+
+                        SectionHeader(title: "欲しいもの", systemImage: "sparkles")
+                        if activeWishItems.isEmpty {
+                            EmptyStateView(systemImage: "sparkles", title: "欲しいものは空です", message: "家具、家電、収納用品などを家族メモとして残せます。")
+                        } else {
+                            VStack(spacing: 10) {
+                                ForEach(activeWishItems) { item in
+                                    WishRow(item: item) {
+                                        markWishPurchased(item)
                                     }
                                 }
                             }
@@ -63,34 +80,59 @@ struct ShoppingListView: View {
     private var addPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                Image(systemName: "plus")
+                Image(systemName: addMode.systemImage)
                     .font(.headline.weight(.bold))
                     .foregroundStyle(.white)
                     .frame(width: 34, height: 34)
-                    .background(StockTheme.mint, in: Circle())
-                Text("買うものを追加")
+                    .background(addMode.tint, in: Circle())
+                Text(addMode.title)
                     .font(.headline.weight(.black))
                 Spacer()
             }
 
-            HStack(spacing: 10) {
-                TextField("牛乳、洗剤、卵など", text: $newItemName)
+            Picker("追加先", selection: $addMode) {
+                ForEach(ShoppingAddMode.allCases) { mode in
+                    Text(mode.segmentTitle).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            VStack(spacing: 10) {
+                TextField(addMode.placeholder, text: $newItemName)
                     .textInputAutocapitalization(.never)
                     .textFieldStyle(.roundedBorder)
 
-                Picker("店", selection: $newItemStore) {
-                    ForEach(StoreType.allCases) { type in
-                        Text(type.label).tag(type)
+                if addMode == .shopping {
+                    Picker("店", selection: $newItemStore) {
+                        ForEach(StoreType.allCases) { type in
+                            Text(type.label).tag(type)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    HStack {
+                        Picker("優先度", selection: $newWishPriority) {
+                            ForEach(Priority.allCases) { priority in
+                                Text(priority.label).tag(priority)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        TextField("メモ/URL 任意", text: $newWishMemo)
+                            .textInputAutocapitalization(.never)
+                            .textFieldStyle(.roundedBorder)
                     }
                 }
-                .pickerStyle(.menu)
 
                 Button {
-                    addManualItem()
+                    addManualEntry()
                 } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title2)
+                    Label(addMode.buttonTitle, systemImage: "plus.circle.fill")
+                        .font(.headline.weight(.bold))
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.borderedProminent)
                 .disabled(newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
@@ -106,6 +148,25 @@ struct ShoppingListView: View {
     private var completedItems: [ShoppingItem] {
         items.filter { $0.status == .completed }
             .sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
+    }
+
+    private var activeWishItems: [WishItem] {
+        wishItems.filter { $0.status == .active }
+            .sorted { lhs, rhs in
+                if lhs.priority.shoppingRank == rhs.priority.shoppingRank {
+                    return lhs.createdAt < rhs.createdAt
+                }
+                return lhs.priority.shoppingRank > rhs.priority.shoppingRank
+            }
+    }
+
+    private func addManualEntry() {
+        switch addMode {
+        case .shopping:
+            addManualItem()
+        case .wish:
+            addWishItem()
+        }
     }
 
     private func addManualItem() {
@@ -128,11 +189,41 @@ struct ShoppingListView: View {
         }
     }
 
+    private func addWishItem() {
+        Task {
+            do {
+                _ = try await appState.inventoryStore.addWishItem(
+                    name: newItemName.trimmingCharacters(in: .whitespacesAndNewlines),
+                    url: newWishMemo.urlCandidate,
+                    price: nil,
+                    priority: newWishPriority,
+                    memo: newWishMemo
+                )
+                newItemName = ""
+                newWishMemo = ""
+                appState.showToast("欲しいものに追加しました")
+            } catch {
+                appState.showToast(error.localizedDescription)
+            }
+        }
+    }
+
     private func complete(_ item: ShoppingItem) {
         Task {
             do {
                 try await appState.inventoryStore.completeShoppingItem(id: item.id)
                 appState.showToast("購入済みにしました")
+            } catch {
+                appState.showToast(error.localizedDescription)
+            }
+        }
+    }
+
+    private func markWishPurchased(_ item: WishItem) {
+        Task {
+            do {
+                try await appState.inventoryStore.markWishPurchased(id: item.id)
+                appState.showToast("欲しいものを購入済みにしました")
             } catch {
                 appState.showToast(error.localizedDescription)
             }
@@ -186,6 +277,110 @@ struct ShoppingRow: View {
     }
 }
 
+struct WishRow: View {
+    let item: WishItem
+    let onPurchased: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Button(action: onPurchased) {
+                Image(systemName: "checkmark.circle")
+                    .font(.title3.weight(.semibold))
+            }
+            .buttonStyle(.borderless)
+            .tint(StockTheme.coral)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.name)
+                    .font(.headline)
+
+                if let memo = item.memo, memo.isEmpty == false {
+                    Text(memo)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                } else if let url = item.url {
+                    Text(url)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer()
+
+            StatusPill(text: item.priority.label, color: item.priority.color)
+        }
+        .padding(14)
+        .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(StockTheme.coral.opacity(0.18), lineWidth: 1)
+        }
+    }
+}
+
+private enum ShoppingAddMode: String, CaseIterable, Identifiable {
+    case shopping
+    case wish
+
+    var id: String { rawValue }
+
+    var segmentTitle: String {
+        switch self {
+        case .shopping:
+            return "買う"
+        case .wish:
+            return "ほしい"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .shopping:
+            return "買うものを追加"
+        case .wish:
+            return "欲しいものを追加"
+        }
+    }
+
+    var buttonTitle: String {
+        switch self {
+        case .shopping:
+            return "買い物に追加"
+        case .wish:
+            return "欲しいものに追加"
+        }
+    }
+
+    var placeholder: String {
+        switch self {
+        case .shopping:
+            return "牛乳、洗剤、卵など"
+        case .wish:
+            return "棚、炊飯器、収納ボックスなど"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .shopping:
+            return "cart.badge.plus"
+        case .wish:
+            return "sparkles"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .shopping:
+            return StockTheme.mint
+        case .wish:
+            return StockTheme.coral
+        }
+    }
+}
+
 private extension Priority {
     var shoppingRank: Int {
         switch self {
@@ -211,5 +406,13 @@ private extension Priority {
         case .low:
             return .secondary
         }
+    }
+}
+
+private extension String {
+    var urlCandidate: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") else { return nil }
+        return trimmed
     }
 }

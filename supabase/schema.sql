@@ -244,7 +244,7 @@ drop policy if exists "localstock households visible to members" on public.local
 create policy "localstock households visible to members"
 on public.localstock_households
 for select to authenticated
-using (private.localstock_is_household_member(id));
+using ((select private.localstock_is_household_member(id)));
 
 drop policy if exists "localstock households can be created by signed in users" on public.localstock_households;
 create policy "localstock households can be created by signed in users"
@@ -257,15 +257,15 @@ create policy "localstock household owners can update household"
 on public.localstock_households
 for update to authenticated
 using (
-  private.localstock_is_household_owner(id)
+  (select private.localstock_is_household_owner(id))
 )
-with check (private.localstock_is_household_owner(id));
+with check ((select private.localstock_is_household_owner(id)));
 
 drop policy if exists "localstock members visible to same household" on public.localstock_household_members;
 create policy "localstock members visible to same household"
 on public.localstock_household_members
 for select to authenticated
-using (private.localstock_is_household_member(household_id));
+using ((select private.localstock_is_household_member(household_id)));
 
 drop policy if exists "localstock user can add self to created household" on public.localstock_household_members;
 create policy "localstock user can add self to created household"
@@ -273,7 +273,7 @@ on public.localstock_household_members
 for insert to authenticated
 with check (
   user_id = (select auth.uid())
-  and private.localstock_household_created_by(household_id, (select auth.uid()))
+  and (select private.localstock_household_created_by(household_id, (select auth.uid())))
 );
 
 drop policy if exists "localstock owner can invite members" on public.localstock_household_members;
@@ -281,7 +281,7 @@ create policy "localstock owner can invite members"
 on public.localstock_household_members
 for insert to authenticated
 with check (
-  private.localstock_is_household_owner(household_id)
+  (select private.localstock_is_household_owner(household_id))
 );
 
 drop policy if exists "localstock products are household scoped" on public.localstock_products;
@@ -290,18 +290,18 @@ drop policy if exists "localstock products can be updated by members" on public.
 create policy "localstock products are household scoped"
 on public.localstock_products
 for select to authenticated
-using (private.localstock_is_household_member(household_id));
+using ((select private.localstock_is_household_member(household_id)));
 
 create policy "localstock products can be inserted by members"
 on public.localstock_products
 for insert to authenticated
-with check (private.localstock_is_household_member(household_id));
+with check ((select private.localstock_is_household_member(household_id)));
 
 create policy "localstock products can be updated by members"
 on public.localstock_products
 for update to authenticated
-using (private.localstock_is_household_member(household_id))
-with check (private.localstock_is_household_member(household_id));
+using ((select private.localstock_is_household_member(household_id)))
+with check ((select private.localstock_is_household_member(household_id)));
 
 drop policy if exists "localstock events are household scoped" on public.localstock_inventory_events;
 drop policy if exists "localstock events can be inserted by members" on public.localstock_inventory_events;
@@ -309,21 +309,21 @@ drop policy if exists "localstock events can be updated by members" on public.lo
 create policy "localstock events are household scoped"
 on public.localstock_inventory_events
 for select to authenticated
-using (private.localstock_is_household_member(household_id));
+using ((select private.localstock_is_household_member(household_id)));
 
 create policy "localstock events can be inserted by members"
 on public.localstock_inventory_events
 for insert to authenticated
 with check (
-  private.localstock_is_household_member(household_id)
+  (select private.localstock_is_household_member(household_id))
   and created_by = (select auth.uid())
 );
 
 create policy "localstock events can be updated by members"
 on public.localstock_inventory_events
 for update to authenticated
-using (private.localstock_is_household_member(household_id))
-with check (private.localstock_is_household_member(household_id));
+using ((select private.localstock_is_household_member(household_id)))
+with check ((select private.localstock_is_household_member(household_id)));
 
 drop policy if exists "localstock shopping items are household scoped" on public.localstock_shopping_items;
 drop policy if exists "localstock shopping items can be inserted by members" on public.localstock_shopping_items;
@@ -331,21 +331,21 @@ drop policy if exists "localstock shopping items can be updated by members" on p
 create policy "localstock shopping items are household scoped"
 on public.localstock_shopping_items
 for select to authenticated
-using (private.localstock_is_household_member(household_id));
+using ((select private.localstock_is_household_member(household_id)));
 
 create policy "localstock shopping items can be inserted by members"
 on public.localstock_shopping_items
 for insert to authenticated
 with check (
-  private.localstock_is_household_member(household_id)
+  (select private.localstock_is_household_member(household_id))
   and created_by = (select auth.uid())
 );
 
 create policy "localstock shopping items can be updated by members"
 on public.localstock_shopping_items
 for update to authenticated
-using (private.localstock_is_household_member(household_id))
-with check (private.localstock_is_household_member(household_id));
+using ((select private.localstock_is_household_member(household_id)))
+with check ((select private.localstock_is_household_member(household_id)));
 
 drop policy if exists "localstock wish items are household scoped" on public.localstock_wish_items;
 drop policy if exists "localstock wish items can be inserted by members" on public.localstock_wish_items;
@@ -353,38 +353,46 @@ drop policy if exists "localstock wish items can be updated by members" on publi
 create policy "localstock wish items are household scoped"
 on public.localstock_wish_items
 for select to authenticated
-using (private.localstock_is_household_member(household_id));
+using ((select private.localstock_is_household_member(household_id)));
 
 create policy "localstock wish items can be inserted by members"
 on public.localstock_wish_items
 for insert to authenticated
 with check (
-  private.localstock_is_household_member(household_id)
+  (select private.localstock_is_household_member(household_id))
   and created_by = (select auth.uid())
 );
 
 create policy "localstock wish items can be updated by members"
 on public.localstock_wish_items
 for update to authenticated
-using (private.localstock_is_household_member(household_id))
-with check (private.localstock_is_household_member(household_id));
+using ((select private.localstock_is_household_member(household_id)))
+with check ((select private.localstock_is_household_member(household_id)));
 
 drop policy if exists "localstock receipts are household scoped" on public.localstock_receipts;
 drop policy if exists "localstock receipts can be inserted by members" on public.localstock_receipts;
+drop policy if exists "localstock receipts can be updated by members" on public.localstock_receipts;
 create policy "localstock receipts are household scoped"
 on public.localstock_receipts
 for select to authenticated
-using (private.localstock_is_household_member(household_id));
+using ((select private.localstock_is_household_member(household_id)));
 
 create policy "localstock receipts can be inserted by members"
 on public.localstock_receipts
 for insert to authenticated
 with check (
-  private.localstock_is_household_member(household_id)
+  (select private.localstock_is_household_member(household_id))
   and created_by = (select auth.uid())
 );
+
+create policy "localstock receipts can be updated by members"
+on public.localstock_receipts
+for update to authenticated
+using ((select private.localstock_is_household_member(household_id)))
+with check ((select private.localstock_is_household_member(household_id)));
 
 create index if not exists localstock_products_household_idx on public.localstock_products (household_id, is_active, normalized_name);
 create index if not exists localstock_events_household_product_idx on public.localstock_inventory_events (household_id, product_id, created_at desc);
 create index if not exists localstock_shopping_household_status_idx on public.localstock_shopping_items (household_id, status, created_at desc);
+create index if not exists localstock_wish_household_status_idx on public.localstock_wish_items (household_id, status, created_at desc);
 create index if not exists localstock_receipts_household_created_idx on public.localstock_receipts (household_id, created_at desc);

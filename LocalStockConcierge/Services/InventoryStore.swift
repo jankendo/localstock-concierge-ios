@@ -119,6 +119,18 @@ final class InventoryStore {
     }
 
     @discardableResult
+    func addWishItem(name: String, url: String?, price: Int?, priority: Priority, memo: String?) async throws -> WishItem {
+        let item = try requireRepository().addWishItem(name: name, url: url, price: price, priority: priority, memo: memo)
+        try await pushWishItems()
+        return item
+    }
+
+    func markWishPurchased(id: UUID) async throws {
+        try requireRepository().markWishPurchased(id: id)
+        try await pushWishItems()
+    }
+
+    @discardableResult
     func saveReceipt(rawText: String, parsedJSON: String?, storeName: String?, purchasedAt: Date?, totalAmount: Int?, imageLocalPath: String?) async throws -> Receipt {
         let receipt = try requireRepository().saveReceipt(
             rawText: rawText,
@@ -137,6 +149,7 @@ final class InventoryStore {
         try await cloud.upsertProducts(repository.products())
         try await cloud.upsertEvents(repository.allEvents())
         try await cloud.upsertShoppingItems(try localShoppingItems())
+        try await cloud.upsertWishItems(try localWishItems())
         try await cloud.upsertReceipts(try localReceipts())
         lastSyncAt = .now
         syncMessage = "Supabaseへ保存しました。"
@@ -175,6 +188,12 @@ final class InventoryStore {
         lastSyncAt = .now
     }
 
+    private func pushWishItems() async throws {
+        guard canUseCloud else { return }
+        try await cloud?.upsertWishItems(try localWishItems())
+        lastSyncAt = .now
+    }
+
     private func pushReceipts(_ receipts: [Receipt]) async throws {
         guard canUseCloud else { return }
         try await cloud?.upsertReceipts(receipts)
@@ -195,6 +214,10 @@ final class InventoryStore {
 
     private func localReceipts() throws -> [Receipt] {
         try requireContext().fetch(FetchDescriptor<Receipt>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))
+    }
+
+    private func localWishItems() throws -> [WishItem] {
+        try requireContext().fetch(FetchDescriptor<WishItem>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))
     }
 
     private func merge(_ snapshot: LocalStockRemoteSnapshot) throws {
@@ -234,6 +257,17 @@ final class InventoryStore {
             } else {
                 context.insert(incoming)
                 localItems[incoming.id] = incoming
+            }
+        }
+
+        var localWishItems = try context.fetch(FetchDescriptor<WishItem>())
+            .reduce(into: [UUID: WishItem]()) { $0[$1.id] = $1 }
+        for incoming in snapshot.wishItems {
+            if let existing = localWishItems[incoming.id] {
+                existing.copyValues(from: incoming)
+            } else {
+                context.insert(incoming)
+                localWishItems[incoming.id] = incoming
             }
         }
 
@@ -294,5 +328,18 @@ private extension ShoppingItem {
         status = other.status
         createdAt = other.createdAt
         completedAt = other.completedAt
+    }
+}
+
+private extension WishItem {
+    func copyValues(from other: WishItem) {
+        name = other.name
+        url = other.url
+        price = other.price
+        priority = other.priority
+        status = other.status
+        memo = other.memo
+        createdAt = other.createdAt
+        updatedAt = other.updatedAt
     }
 }

@@ -74,6 +74,14 @@ final class SupabaseInventoryCloud {
             .execute()
             .value
 
+        let wishRecords: [RemoteWishItemRecord] = try await client
+            .from("localstock_wish_items")
+            .select()
+            .eq("household_id", value: householdID.uuidString)
+            .order("created_at", ascending: false)
+            .execute()
+            .value
+
         let receiptRecords: [RemoteReceiptRecord] = try await client
             .from("localstock_receipts")
             .select()
@@ -87,6 +95,7 @@ final class SupabaseInventoryCloud {
             products: productRecords.map { $0.domainProduct() },
             events: eventRecords.map { $0.domainEvent() },
             shoppingItems: shoppingRecords.map { $0.domainItem() },
+            wishItems: wishRecords.map { $0.domainItem() },
             receipts: receiptRecords.map { $0.domainReceipt() }
         )
     }
@@ -141,6 +150,17 @@ final class SupabaseInventoryCloud {
         let payload = items.map { RemoteShoppingItemPayload(item: $0, householdID: householdID, userID: userID) }
         try await client
             .from("localstock_shopping_items")
+            .upsert(payload)
+            .execute()
+    }
+
+    func upsertWishItems(_ items: [WishItem]) async throws {
+        guard !items.isEmpty else { return }
+        let householdID = try await ensureHousehold()
+        let userID = try await currentUserID()
+        let payload = items.map { RemoteWishItemPayload(item: $0, householdID: householdID, userID: userID) }
+        try await client
+            .from("localstock_wish_items")
             .upsert(payload)
             .execute()
     }
