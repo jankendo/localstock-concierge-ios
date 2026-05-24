@@ -27,6 +27,9 @@ final class InventoryStore {
             cloud = SupabaseInventoryCloud(client: client)
         } else {
             cloud = nil
+            householdName = nil
+            householdInviteCode = nil
+            syncMessage = "端末内キャッシュで動作中"
         }
     }
 

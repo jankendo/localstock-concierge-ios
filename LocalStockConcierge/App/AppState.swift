@@ -50,6 +50,16 @@ final class AppState {
             }
         }
     }
+
+    func saveSupabaseConfiguration(urlString: String, publishableKey: String, modelContext: ModelContext) throws {
+        try cloudAuth.saveConfiguration(urlString: urlString, publishableKey: publishableKey)
+        inventoryStore.configure(modelContext: modelContext, authController: cloudAuth)
+    }
+
+    func clearStoredSupabaseConfiguration(modelContext: ModelContext) {
+        cloudAuth.clearStoredConfiguration()
+        inventoryStore.configure(modelContext: modelContext, authController: cloudAuth)
+    }
 }
 
 enum AppRoute: Hashable, Identifiable {

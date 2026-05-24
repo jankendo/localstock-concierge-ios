@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Product.name) private var products: [Product]
     @Query(sort: \InventoryEvent.createdAt, order: .reverse) private var events: [InventoryEvent]
     @Query(sort: \ShoppingItem.createdAt) private var shoppingItems: [ShoppingItem]
@@ -10,6 +11,9 @@ struct SettingsView: View {
     @State private var nfcMessage = "未実行"
     @State private var email = ""
     @State private var inviteCode = ""
+    @State private var supabaseURL = ""
+    @State private var supabaseKey = ""
+    @State private var isEditingSupabaseConfig = false
 
     var body: some View {
         NavigationStack {
@@ -29,33 +33,43 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    if let projectHost = appState.cloudAuth.projectHost {
+                        LabeledContent("プロジェクト", value: projectHost)
+                    }
+
+                    if let keyPreview = appState.cloudAuth.keyPreview {
+                        LabeledContent("キー", value: keyPreview)
+                    }
+
                     if let error = appState.inventoryStore.syncError {
                         Text(error)
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
 
+                    if shouldShowSupabaseEditor {
+                        supabaseConfigEditor
+                    } else {
+                        Button {
+                            resetSupabaseFields()
+                            isEditingSupabaseConfig = true
+                        } label: {
+                            Label("接続設定を変更", systemImage: "slider.horizontal.3")
+                        }
+                    }
+
                     switch appState.cloudAuth.status {
                     case .unconfigured:
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("ビルド設定にSupabase URLとpublishable keyを入れると、同じ世帯の在庫を共同利用できます。")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Label("RLSで世帯メンバーだけが読めます", systemImage: "lock.shield")
-                        }
-                    case .signedOut, .failed(_):
-                        TextField("メールアドレス", text: $email)
-                            .keyboardType(.emailAddress)
-                            .textContentType(.emailAddress)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-
-                        Button {
-                            sendMagicLink()
-                        } label: {
-                            Label("メールリンクでログイン", systemImage: "envelope.badge")
-                        }
-                        .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        Label("URLとpublishable keyを保存すると共同在庫を使えます", systemImage: "person.2.fill")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    case .signedOut:
+                        loginControls
+                    case .failed(let message):
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                        loginControls
                     case .signingIn:
                         HStack {
                             ProgressView()
@@ -159,8 +173,73 @@ struct SettingsView: View {
                 nfcService.onMessage = { message in
                     nfcMessage = message
                 }
+                resetSupabaseFields()
+                isEditingSupabaseConfig = isCloudUnconfigured
             }
         }
+    }
+
+    private var isCloudUnconfigured: Bool {
+        if case .unconfigured = appState.cloudAuth.status { return true }
+        return false
+    }
+
+    private var shouldShowSupabaseEditor: Bool {
+        isEditingSupabaseConfig || isCloudUnconfigured
+    }
+
+    @ViewBuilder
+    private var supabaseConfigEditor: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            TextField("https://PROJECT_REF.supabase.co", text: $supabaseURL)
+                .keyboardType(.URL)
+                .textContentType(.URL)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+
+            SecureField("sb_publishable_...", text: $supabaseKey)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+
+            Label("publishable key または legacy anon key のみ保存できます", systemImage: "key.horizontal")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Button {
+                    saveSupabaseConfiguration()
+                } label: {
+                    Label("接続を保存", systemImage: "checkmark.circle.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(supabaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || supabaseKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                if appState.cloudAuth.hasStoredConfiguration {
+                    Button(role: .destructive) {
+                        clearStoredSupabaseConfiguration()
+                    } label: {
+                        Label("端末設定を削除", systemImage: "trash")
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var loginControls: some View {
+        TextField("メールアドレス", text: $email)
+            .keyboardType(.emailAddress)
+            .textContentType(.emailAddress)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+
+        Button {
+            sendMagicLink()
+        } label: {
+            Label("メールリンクでログイン", systemImage: "envelope.badge")
+        }
+        .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
     private var isDownloading: Bool {
@@ -273,6 +352,41 @@ struct SettingsView: View {
         case .unconfigured, .signedOut:
             return .orange
         }
+    }
+
+    private func resetSupabaseFields() {
+        if let storedValues = SupabaseConfiguration.loadStoredValues() {
+            supabaseURL = storedValues.url
+            supabaseKey = storedValues.key
+        } else if let configuration = appState.cloudAuth.configuration {
+            supabaseURL = configuration.url.absoluteString
+            supabaseKey = configuration.publishableKey
+        } else {
+            supabaseURL = ""
+            supabaseKey = ""
+        }
+    }
+
+    private func saveSupabaseConfiguration() {
+        do {
+            try appState.saveSupabaseConfiguration(
+                urlString: supabaseURL,
+                publishableKey: supabaseKey,
+                modelContext: modelContext
+            )
+            resetSupabaseFields()
+            isEditingSupabaseConfig = false
+            appState.showToast("Supabase接続を保存しました")
+        } catch {
+            appState.showToast(error.localizedDescription)
+        }
+    }
+
+    private func clearStoredSupabaseConfiguration() {
+        appState.clearStoredSupabaseConfiguration(modelContext: modelContext)
+        resetSupabaseFields()
+        isEditingSupabaseConfig = isCloudUnconfigured
+        appState.showToast("端末内の接続設定を削除しました")
     }
 
     private func sendMagicLink() {

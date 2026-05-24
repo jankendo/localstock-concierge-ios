@@ -30,6 +30,8 @@ The publishable key is safe in the client only because RLS is enabled. Do not pu
 
 For GitHub Actions builds, add repository secrets named `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. The unsigned IPA workflow injects them as build settings without committing secrets.
 
+If the IPA was built without those repository secrets, open Settings > Supabase共有 after installing the app and save the Supabase URL plus a publishable key on the device. The app rejects `sb_secret_` and legacy `service_role` keys; shared access still depends on running `supabase/schema.sql` and keeping RLS enabled.
+
 ## Local development
 
 This repository is designed to be edited from Windows and built on GitHub Actions.
