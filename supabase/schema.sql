@@ -268,20 +268,17 @@ for select to authenticated
 using ((select private.localstock_is_household_member(household_id)));
 
 drop policy if exists "localstock user can add self to created household" on public.localstock_household_members;
-create policy "localstock user can add self to created household"
-on public.localstock_household_members
-for insert to authenticated
-with check (
-  user_id = (select auth.uid())
-  and (select private.localstock_household_created_by(household_id, (select auth.uid())))
-);
-
 drop policy if exists "localstock owner can invite members" on public.localstock_household_members;
-create policy "localstock owner can invite members"
+drop policy if exists "localstock members can be inserted when allowed" on public.localstock_household_members;
+create policy "localstock members can be inserted when allowed"
 on public.localstock_household_members
 for insert to authenticated
 with check (
-  (select private.localstock_is_household_owner(household_id))
+  (
+    user_id = (select auth.uid())
+    and (select private.localstock_household_created_by(household_id, (select auth.uid())))
+  )
+  or (select private.localstock_is_household_owner(household_id))
 );
 
 drop policy if exists "localstock products are household scoped" on public.localstock_products;
@@ -392,7 +389,15 @@ using ((select private.localstock_is_household_member(household_id)))
 with check ((select private.localstock_is_household_member(household_id)));
 
 create index if not exists localstock_products_household_idx on public.localstock_products (household_id, is_active, normalized_name);
+create index if not exists localstock_households_created_by_idx on public.localstock_households (created_by);
+create index if not exists localstock_household_members_user_idx on public.localstock_household_members (user_id);
 create index if not exists localstock_events_household_product_idx on public.localstock_inventory_events (household_id, product_id, created_at desc);
+create index if not exists localstock_events_product_idx on public.localstock_inventory_events (product_id);
+create index if not exists localstock_events_created_by_idx on public.localstock_inventory_events (created_by);
 create index if not exists localstock_shopping_household_status_idx on public.localstock_shopping_items (household_id, status, created_at desc);
+create index if not exists localstock_shopping_product_idx on public.localstock_shopping_items (product_id);
+create index if not exists localstock_shopping_created_by_idx on public.localstock_shopping_items (created_by);
 create index if not exists localstock_wish_household_status_idx on public.localstock_wish_items (household_id, status, created_at desc);
+create index if not exists localstock_wish_created_by_idx on public.localstock_wish_items (created_by);
 create index if not exists localstock_receipts_household_created_idx on public.localstock_receipts (household_id, created_at desc);
+create index if not exists localstock_receipts_created_by_idx on public.localstock_receipts (created_by);
