@@ -37,6 +37,8 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    cloudHealthControls
+
                     if let projectHost = appState.cloudAuth.projectHost {
                         LabeledContent("プロジェクト", value: projectHost)
                     }
@@ -116,7 +118,10 @@ struct SettingsView: View {
                         .disabled(appState.inventoryStore.isSyncing)
 
                         Button(role: .destructive) {
-                            Task { await appState.cloudAuth.signOut() }
+                            Task {
+                                await appState.cloudAuth.signOut()
+                                await appState.inventoryStore.checkCloudHealth()
+                            }
                         } label: {
                             Label("ログアウト", systemImage: "rectangle.portrait.and.arrow.right")
                         }
@@ -204,6 +209,38 @@ struct SettingsView: View {
             FlowStep(title: "メールでログイン", detail: "届いたリンクをこのiPhoneで開く", tint: StockTheme.mint),
             FlowStep(title: "家族を招待", detail: "招待コードを渡す、または入力する", tint: StockTheme.coral)
         ])
+    }
+
+    @ViewBuilder
+    private var cloudHealthControls: some View {
+        if let report = appState.inventoryStore.cloudHealthReport {
+            FriendlyNotice(
+                title: report.title,
+                message: report.message,
+                systemImage: report.systemImage,
+                tint: healthTint(for: report.kind)
+            )
+        }
+
+        Button {
+            Task { await appState.inventoryStore.checkCloudHealth() }
+        } label: {
+            Label(
+                appState.inventoryStore.isCheckingCloudHealth ? "接続を確認中" : "接続を確認",
+                systemImage: appState.inventoryStore.isCheckingCloudHealth ? "hourglass" : "checkmark.shield"
+            )
+        }
+        .disabled(appState.inventoryStore.isCheckingCloudHealth)
+
+        if appState.inventoryStore.isCheckingCloudHealth {
+            HStack(spacing: 10) {
+                ProgressView()
+                Text("ログイン、世帯、RLS、Data APIを確認しています")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     @ViewBuilder
@@ -406,6 +443,7 @@ struct SettingsView: View {
             resetSupabaseFields()
             isEditingSupabaseConfig = false
             appState.showToast("Supabase接続を保存しました")
+            Task { await appState.inventoryStore.checkCloudHealth() }
         } catch {
             appState.showToast(error.localizedDescription)
         }
@@ -423,6 +461,7 @@ struct SettingsView: View {
             do {
                 try await appState.cloudAuth.sendMagicLink(email: email)
                 appState.showToast("ログインメールを送信しました")
+                await appState.inventoryStore.checkCloudHealth()
             } catch {
                 appState.showToast(error.localizedDescription)
             }
@@ -438,6 +477,17 @@ struct SettingsView: View {
             } catch {
                 appState.showToast(error.localizedDescription)
             }
+        }
+    }
+
+    private func healthTint(for kind: CloudHealthReport.Kind) -> Color {
+        switch kind {
+        case .success:
+            return .green
+        case .warning:
+            return StockTheme.lemon
+        case .failure:
+            return StockTheme.coral
         }
     }
 }

@@ -10,9 +10,11 @@ final class InventoryStore {
     private var cloud: SupabaseInventoryCloud?
 
     var isSyncing = false
+    var isCheckingCloudHealth = false
     var lastSyncAt: Date?
     var syncError: String?
     var syncMessage = "端末内キャッシュで動作中"
+    var cloudHealthReport: CloudHealthReport?
     var householdName: String?
     var householdInviteCode: String?
 
@@ -29,6 +31,7 @@ final class InventoryStore {
             cloud = nil
             householdName = nil
             householdInviteCode = nil
+            cloudHealthReport = nil
             syncMessage = "端末内キャッシュで動作中"
         }
     }
@@ -54,14 +57,94 @@ final class InventoryStore {
                 syncMessage = "Supabaseから最新の共有在庫を取得しました。"
             }
             lastSyncAt = .now
+            cloudHealthReport = CloudHealthReport(
+                kind: .success,
+                title: "Supabase共有は使えます",
+                message: "世帯「\(householdName ?? "ふたりの在庫")」の共有在庫を同期できます。",
+                systemImage: "checkmark.shield.fill"
+            )
 
             if (try? repository.activeProducts().isEmpty) == true {
                 SeedData.ensureSeeded(in: try requireContext())
                 try await pushFullSnapshot()
             }
         } catch {
-            syncError = error.localizedDescription
+            syncError = humanizedCloudError(error)
             syncMessage = "同期に失敗しました。端末内キャッシュは利用できます。"
+        }
+    }
+
+    func checkCloudHealth() async {
+        syncError = nil
+
+        guard let authController, authController.configuration != nil, cloud != nil else {
+            let message = "Supabase URL と publishable key を保存してください。端末内だけでも在庫管理は続けられます。"
+            cloudHealthReport = CloudHealthReport(
+                kind: .warning,
+                title: "接続設定が未保存です",
+                message: message,
+                systemImage: "link.badge.plus"
+            )
+            syncMessage = message
+            return
+        }
+
+        switch authController.status {
+        case .unconfigured:
+            let message = "Supabase URL と publishable key を保存してください。"
+            cloudHealthReport = CloudHealthReport(kind: .warning, title: "接続設定が未保存です", message: message, systemImage: "link.badge.plus")
+            syncMessage = message
+            return
+        case .signedOut:
+            let message = "接続設定は保存済みです。次にメールリンクでログインしてください。"
+            cloudHealthReport = CloudHealthReport(kind: .warning, title: "ログイン待ちです", message: message, systemImage: "envelope.badge")
+            syncMessage = message
+            return
+        case .signingIn:
+            cloudHealthReport = CloudHealthReport(kind: .warning, title: "ログイン確認中です", message: "メールリンクを開いたあと、もう一度確認してください。", systemImage: "hourglass")
+            return
+        case .failed(let message):
+            cloudHealthReport = CloudHealthReport(kind: .failure, title: "ログインで止まっています", message: message, systemImage: "person.crop.circle.badge.exclamationmark")
+            syncError = message
+            return
+        case .signedIn:
+            break
+        }
+
+        guard let cloud else {
+            let message = "Supabaseクライアントを初期化できませんでした。URLとキーを保存し直してください。"
+            cloudHealthReport = CloudHealthReport(kind: .failure, title: "接続設定を確認してください", message: message, systemImage: "exclamationmark.triangle")
+            syncError = message
+            return
+        }
+
+        isCheckingCloudHealth = true
+        defer { isCheckingCloudHealth = false }
+
+        do {
+            _ = try await cloud.currentUserID()
+            _ = try await cloud.loadSnapshot()
+            try await refreshHouseholdInfo()
+
+            let name = householdName ?? "ふたりの在庫"
+            let message = "接続OK。世帯「\(name)」の共有在庫を読み書きできます。"
+            cloudHealthReport = CloudHealthReport(
+                kind: .success,
+                title: "Supabase共有は使えます",
+                message: message,
+                systemImage: "checkmark.shield.fill"
+            )
+            syncMessage = "Supabase接続を確認しました。"
+        } catch {
+            let message = humanizedCloudError(error)
+            cloudHealthReport = CloudHealthReport(
+                kind: .failure,
+                title: "接続確認に失敗しました",
+                message: message,
+                systemImage: "exclamationmark.triangle.fill"
+            )
+            syncError = message
+            syncMessage = "Supabase接続を確認できませんでした。"
         }
     }
 
@@ -278,6 +361,57 @@ final class InventoryStore {
 
         try context.save()
     }
+
+    private func humanizedCloudError(_ error: Error) -> String {
+        let localized = error.localizedDescription
+        let raw = String(describing: error)
+        let searchable = "\(localized) \(raw)".lowercased()
+
+        if searchable.contains("invalid api key")
+            || searchable.contains("apikey")
+            || searchable.contains("jwt")
+            || searchable.contains("unauthorized")
+            || searchable.contains("401") {
+            return "Supabase URL または publishable key が違う可能性があります。Project ConnectのSwift用URLとpublishable keyを入れ直してください。"
+        }
+
+        if searchable.contains("permission denied")
+            || searchable.contains("row-level security")
+            || searchable.contains("rls")
+            || searchable.contains("policy") {
+            return "SupabaseのRLSまたはGRANT設定で止まっています。`supabase/schema.sql` を最新にして、RLSを有効なまま実行してください。"
+        }
+
+        if searchable.contains("schema cache")
+            || searchable.contains("relation")
+            || searchable.contains("does not exist")
+            || searchable.contains("could not find")
+            || searchable.contains("localstock_") {
+            return "Supabaseに `supabase/schema.sql` が未適用、または古い可能性があります。SQL Editorで最新のschema.sqlを実行してください。"
+        }
+
+        if searchable.contains("network")
+            || searchable.contains("timed out")
+            || searchable.contains("offline")
+            || searchable.contains("internet") {
+            return "ネットワークに接続できませんでした。通信状態を確認してから再実行してください。"
+        }
+
+        return localized.isEmpty ? raw : localized
+    }
+}
+
+struct CloudHealthReport: Equatable {
+    enum Kind: Equatable {
+        case success
+        case warning
+        case failure
+    }
+
+    var kind: Kind
+    var title: String
+    var message: String
+    var systemImage: String
 }
 
 enum InventoryStoreError: LocalizedError {

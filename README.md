@@ -33,6 +33,8 @@ For GitHub Actions builds, add repository secrets named `SUPABASE_URL` and `SUPA
 
 If the IPA was built without those repository secrets, open Settings > Supabase共有 after installing the app and save the Supabase URL plus a publishable key on the device. The app rejects `sb_secret_` and legacy `service_role` keys; shared access still depends on running `supabase/schema.sql` and keeping RLS enabled.
 
+After saving the settings, use Settings > Supabase共有 > 接続を確認. The in-app check separates the common setup stops: missing URL/key, login not completed, missing or outdated `schema.sql`, invalid publishable key, and RLS/GRANT policy issues.
+
 ## Local development
 
 This repository is designed to be edited from Windows and built on GitHub Actions.
