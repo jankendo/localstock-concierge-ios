@@ -21,11 +21,14 @@ struct NextActionCard: View {
                         .font(.headline.weight(.black))
                         .foregroundStyle(StockTheme.ink)
                         .multilineTextAlignment(.leading)
+                        .lineLimit(2)
                     Text(subtitle)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .layoutPriority(1)
 
                 Spacer(minLength: 8)
 
@@ -33,6 +36,7 @@ struct NextActionCard: View {
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(tint)
             }
+            .contentShape(Rectangle())
             .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
             .padding(14)
             .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -42,6 +46,9 @@ struct NextActionCard: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title)。\(subtitle)")
+        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -65,14 +72,19 @@ struct FlowStepStrip: View {
                         Text(step.detail)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    .layoutPriority(1)
 
                     Spacer(minLength: 0)
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(index + 1)。\(step.title)。\(step.detail)")
             }
         }
         .padding(14)
         .background(.white.opacity(0.86), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -102,13 +114,16 @@ struct FriendlyNotice: View {
                 Text(title)
                     .font(.headline.weight(.black))
                     .foregroundStyle(StockTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(message)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .layoutPriority(1)
         }
         .padding(14)
         .background(.white.opacity(0.86), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }

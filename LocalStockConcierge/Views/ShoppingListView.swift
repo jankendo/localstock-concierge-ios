@@ -244,32 +244,35 @@ struct ShoppingRow: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(item.name)
-                        .font(.headline)
-                    if let quantity = item.quantity {
-                        Text("\(quantity.formattedStock)\(item.unit ?? "")")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                ViewThatFits(in: .horizontal) {
+                    HStack {
+                        itemTitle
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        itemTitle
                     }
                 }
+
                 Text(item.reason)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .layoutPriority(1)
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 4) {
-                StatusPill(text: item.priority.label, color: item.priority.color)
-                Text(item.storeType.label)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Button(action: onComplete) {
-                    Label("買った", systemImage: "checkmark.circle")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    rowMeta
+                    completeButton
                 }
-                .buttonStyle(.bordered)
-                .tint(StockTheme.mint)
+
+                VStack(alignment: .trailing, spacing: 6) {
+                    rowMeta
+                    completeButton
+                }
             }
         }
         .padding(14)
@@ -278,6 +281,38 @@ struct ShoppingRow: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(item.priority.color.opacity(0.2), lineWidth: 1)
         }
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private var itemTitle: some View {
+        Text(item.name)
+            .font(.headline)
+            .fixedSize(horizontal: false, vertical: true)
+        if let quantity = item.quantity {
+            Text("\(quantity.formattedStock)\(item.unit ?? "")")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var rowMeta: some View {
+        VStack(alignment: .trailing, spacing: 4) {
+            StatusPill(text: item.priority.label, color: item.priority.color)
+            Text(item.storeType.label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var completeButton: some View {
+        Button(action: onComplete) {
+            Label("買った", systemImage: "checkmark.circle")
+        }
+        .buttonStyle(.bordered)
+        .tint(StockTheme.mint)
+        .accessibilityLabel("\(item.name)を購入済みにする")
     }
 }
 
@@ -290,29 +325,36 @@ struct WishRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.name)
                     .font(.headline)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if let memo = item.memo, memo.isEmpty == false {
                     Text(memo)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
                 } else if let url = item.url {
                     Text(url)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .layoutPriority(1)
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 6) {
-                StatusPill(text: item.priority.label, color: item.priority.color)
-                Button(action: onPurchased) {
-                    Label("買った", systemImage: "checkmark.circle")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    StatusPill(text: item.priority.label, color: item.priority.color)
+                    purchasedButton
                 }
-                .buttonStyle(.bordered)
-                .tint(StockTheme.coral)
+
+                VStack(alignment: .trailing, spacing: 6) {
+                    StatusPill(text: item.priority.label, color: item.priority.color)
+                    purchasedButton
+                }
             }
         }
         .padding(14)
@@ -321,6 +363,16 @@ struct WishRow: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(StockTheme.coral.opacity(0.18), lineWidth: 1)
         }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var purchasedButton: some View {
+        Button(action: onPurchased) {
+            Label("買った", systemImage: "checkmark.circle")
+        }
+        .buttonStyle(.bordered)
+        .tint(StockTheme.coral)
+        .accessibilityLabel("\(item.name)を購入済みにする")
     }
 }
 

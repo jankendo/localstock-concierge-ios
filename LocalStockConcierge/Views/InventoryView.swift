@@ -113,35 +113,39 @@ struct ProductInventoryRow: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(product.name)
                         .font(.headline)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text("\(product.locationName) / \(product.managementType.label)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .layoutPriority(1)
                 Spacer()
                 StatusPill(text: state.status.label, color: state.status.tint)
             }
 
-            HStack(spacing: 14) {
-                Label("予備 \(state.estimatedStock.formattedStock)\(product.unit)", systemImage: "shippingbox")
-                Label("最低 \(product.minStock.formattedStock)", systemImage: "line.3.horizontal.decrease")
-                if let date = state.lastOpenedAt {
-                    Label(date.formatted(date: .numeric, time: .omitted), systemImage: "calendar")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 14) {
+                    stockLabels
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    stockLabels
                 }
             }
             .font(.caption)
             .foregroundStyle(.secondary)
 
-            HStack {
-                Button(action: onPurchase) {
-                    Label("買った", systemImage: "bag.fill")
-                        .frame(maxWidth: .infinity)
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    purchaseButton
+                    openedButton
                 }
-                    .buttonStyle(.bordered)
-                Button(action: onOpened) {
-                    Label("開けた", systemImage: "shippingbox.and.arrow.backward.fill")
-                        .frame(maxWidth: .infinity)
+
+                VStack(spacing: 8) {
+                    purchaseButton
+                    openedButton
                 }
-                    .buttonStyle(.borderedProminent)
             }
         }
         .padding(14)
@@ -150,6 +154,33 @@ struct ProductInventoryRow: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(state.status.tint.opacity(0.24), lineWidth: 1)
         }
+    }
+
+    @ViewBuilder
+    private var stockLabels: some View {
+        Label("予備 \(state.estimatedStock.formattedStock)\(product.unit)", systemImage: "shippingbox")
+        Label("最低 \(product.minStock.formattedStock)", systemImage: "line.3.horizontal.decrease")
+        if let date = state.lastOpenedAt {
+            Label(date.formatted(date: .numeric, time: .omitted), systemImage: "calendar")
+        }
+    }
+
+    private var purchaseButton: some View {
+        Button(action: onPurchase) {
+            Label("買った", systemImage: "bag.fill")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .accessibilityLabel("\(product.name)を買ったと記録")
+    }
+
+    private var openedButton: some View {
+        Button(action: onOpened) {
+            Label("開けた", systemImage: "shippingbox.and.arrow.backward.fill")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .accessibilityLabel("\(product.name)を開けたと記録")
     }
 }
 

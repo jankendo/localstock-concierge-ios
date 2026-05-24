@@ -22,6 +22,7 @@ struct StatusPill: View {
             }
             Text(text)
                 .font(.caption.weight(.semibold))
+                .lineLimit(1)
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
@@ -31,6 +32,8 @@ struct StatusPill: View {
             Capsule()
                 .stroke(color.opacity(0.2), lineWidth: 1)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(text)
     }
 }
 
@@ -53,9 +56,11 @@ struct MetricTile: View {
             Text(value)
                 .font(.system(size: 30, weight: .black, design: .rounded))
                 .foregroundStyle(StockTheme.ink)
+                .minimumScaleFactor(0.8)
             Text(title)
                 .font(.caption.weight(.bold))
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -64,5 +69,7 @@ struct MetricTile: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(.white.opacity(0.75), lineWidth: 1)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title) \(value)")
     }
 }

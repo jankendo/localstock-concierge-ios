@@ -226,23 +226,27 @@ struct AlertRow: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(alert.product.name)
                         .font(.headline)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(alert.reason)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .layoutPriority(1)
                 Spacer()
                 StatusPill(text: alert.state.status.label, color: alert.state.status.tint)
             }
 
-            HStack {
-                Button(action: onOpened) {
-                    Label("開封", systemImage: "shippingbox.and.arrow.backward.fill")
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    openedButton
+                    shoppingButton
                 }
-                    .buttonStyle(.bordered)
-                Button(action: onAddShopping) {
-                    Label("買い物へ", systemImage: "cart.badge.plus")
+
+                VStack(spacing: 8) {
+                    openedButton.frame(maxWidth: .infinity)
+                    shoppingButton.frame(maxWidth: .infinity)
                 }
-                    .buttonStyle(.borderedProminent)
             }
         }
         .padding(14)
@@ -251,6 +255,24 @@ struct AlertRow: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(alert.state.status.tint.opacity(0.24), lineWidth: 1)
         }
+    }
+
+    private var openedButton: some View {
+        Button(action: onOpened) {
+            Label("開けた", systemImage: "shippingbox.and.arrow.backward.fill")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .accessibilityLabel("\(alert.product.name)を開けたと記録")
+    }
+
+    private var shoppingButton: some View {
+        Button(action: onAddShopping) {
+            Label("買い物へ", systemImage: "cart.badge.plus")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .accessibilityLabel("\(alert.product.name)を買い物リストへ追加")
     }
 }
 
@@ -263,15 +285,19 @@ struct ShoppingCompactRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.name)
                     .font(.subheadline.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(item.reason)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .layoutPriority(1)
             Spacer()
             Button(action: onComplete) {
-                Image(systemName: "checkmark.circle.fill")
+                Label("買った", systemImage: "checkmark.circle.fill")
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.bordered)
+            .accessibilityLabel("\(item.name)を購入済みにする")
         }
         .padding(12)
         .background(.white.opacity(0.86), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -290,10 +316,12 @@ struct EmptyStateView: View {
                 .foregroundStyle(.secondary)
             Text(title)
                 .font(.headline)
+                .fixedSize(horizontal: false, vertical: true)
             Text(message)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
         .padding(24)
