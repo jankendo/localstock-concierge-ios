@@ -127,3 +127,52 @@ struct FriendlyNotice: View {
         .accessibilityElement(children: .combine)
     }
 }
+
+struct SetupStepCard: View {
+    let title: String
+    let detail: String
+    let isDone: Bool
+    let systemImage: String
+    let tint: Color
+    let actionTitle: String
+    let action: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: isDone ? "checkmark.circle.fill" : systemImage)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(isDone ? .green : tint)
+                .frame(width: 34, height: 34)
+                .background((isDone ? Color.green : tint).opacity(0.12), in: Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(StockTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(detail)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .layoutPriority(1)
+
+            Spacer(minLength: 8)
+
+            Button(action: action) {
+                Text(isDone ? "済み" : actionTitle)
+                    .font(.subheadline.weight(.bold))
+            }
+            .buttonStyle(.bordered)
+            .disabled(isDone)
+            .accessibilityLabel(isDone ? "\(title)は完了しています" : "\(title)を始める")
+        }
+        .padding(12)
+        .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke((isDone ? Color.green : tint).opacity(0.18), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+    }
+}

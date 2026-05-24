@@ -6,6 +6,8 @@ struct HomeView: View {
     @Query(sort: \Product.name) private var products: [Product]
     @Query(sort: \InventoryEvent.createdAt, order: .reverse) private var events: [InventoryEvent]
     @Query(sort: \ShoppingItem.createdAt) private var shoppingItems: [ShoppingItem]
+    @Query(sort: \Receipt.createdAt, order: .reverse) private var receipts: [Receipt]
+    @State private var isAddingProduct = false
 
     var body: some View {
         NavigationStack {
@@ -20,6 +22,9 @@ struct HomeView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         hero
+                        if shouldShowSetupChecklist {
+                            setupChecklist
+                        }
                         quickActions
                         metrics
 
@@ -68,6 +73,9 @@ struct HomeView: View {
                     }
                     .accessibilityLabel("コンシェルジュ")
                 }
+            }
+            .sheet(isPresented: $isAddingProduct) {
+                ProductEditorView()
             }
         }
     }
@@ -135,6 +143,65 @@ struct HomeView: View {
                     subtitle: "Supabaseログインと招待コード",
                     systemImage: "person.2.fill",
                     tint: .orange
+                ) {
+                    appState.selectedTab = .settings
+                }
+            }
+        }
+    }
+
+    private var shouldShowSetupChecklist: Bool {
+        appState.modelManager.isModelReady == false
+            || products.filter(\.isActive).isEmpty
+            || receipts.isEmpty
+            || appState.cloudAuth.status.isSignedIn == false
+    }
+
+    private var setupChecklist: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "はじめてならここから", systemImage: "checklist")
+
+            VStack(spacing: 10) {
+                SetupStepCard(
+                    title: "AI相談を準備",
+                    detail: "初回だけモデルを保存します",
+                    isDone: appState.modelManager.isModelReady,
+                    systemImage: "sparkles",
+                    tint: StockTheme.sky,
+                    actionTitle: "準備"
+                ) {
+                    appState.isModelSetupPresented = true
+                }
+
+                SetupStepCard(
+                    title: "よく買うものを登録",
+                    detail: "トイペ、洗剤、牛乳などから始めます",
+                    isDone: products.filter(\.isActive).isEmpty == false,
+                    systemImage: "shippingbox.fill",
+                    tint: StockTheme.mint,
+                    actionTitle: "登録"
+                ) {
+                    isAddingProduct = true
+                }
+
+                SetupStepCard(
+                    title: "レシートを1枚読む",
+                    detail: "買ったものを候補として取り込みます",
+                    isDone: receipts.isEmpty == false,
+                    systemImage: "doc.text.viewfinder",
+                    tint: StockTheme.lemon,
+                    actionTitle: "読む"
+                ) {
+                    appState.selectedTab = .receipt
+                }
+
+                SetupStepCard(
+                    title: "家族で共有",
+                    detail: "Supabaseに接続して招待コードを使います",
+                    isDone: appState.cloudAuth.status.isSignedIn,
+                    systemImage: "person.2.fill",
+                    tint: .orange,
+                    actionTitle: "共有"
                 ) {
                     appState.selectedTab = .settings
                 }
